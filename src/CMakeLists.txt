@@ -45,8 +45,11 @@ if (APPLE)
 endif (APPLE)
 if (GSL_FOUND)
     set(CompileFlags "${CompileFlags} -DGSL")
-    target_link_libraries (${libname} ${GSL_LIBRARIES})
+    target_link_libraries (${libname} ${GSL_LIBRARIES} ${EIGEN3_LIBRARIES})
 endif()
+
+target_link_libraries (${libname} ${EIGEN3_LIBRARIES})
+
 set_target_properties (${libname} PROPERTIES COMPILE_FLAGS "${CompileFlags}")
 install(TARGETS ${libname} DESTINATION ${CMAKE_HOME_DIRECTORY})
 

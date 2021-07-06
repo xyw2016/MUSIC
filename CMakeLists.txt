@@ -23,6 +23,9 @@ elseif()
     message("Did not find GSL library, will build MUSIC alone")
 endif()
 
+find_package (Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIR})
+
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6.0)
         message(FATAL_ERROR "Insufficient gcc version")
@@ -55,7 +58,7 @@ message(STATUS "Install prefix: ${CMAKE_INSTALL_PREFIX}")
 
 option (KNL "Build executable on KNL" OFF)
 option (unittest "Build Unit tests" OFF)
-option (link_with_lib "Link executable with the libarary" ON)
+option (link_with_lib "Link executable with the library" ON)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
     if (KNL)
@@ -76,3 +79,4 @@ endif()
 string(APPEND CMAKE_CXX_FLAGS " -Wall")
 
 add_subdirectory (src)
+

@@ -7,6 +7,8 @@
 #include <cassert>
 #include <cmath>
 #include <memory>
+#include <Eigen/Eigenvalues>
+#include <Eigen/Core>
 
 #include "util.h"
 #include "data.h"
@@ -17,9 +19,13 @@
 #include "evolve.h"
 #include "advance.h"
 
+
+
 using Util::map_2d_idx_to_1d;
 using Util::map_1d_idx_to_2d;
 using Util::hbarc;
+using Eigen::MatrixXd;
+using Eigen::EigenSolver;
 
 Advance::Advance(const EOS &eosIn, const InitData &DATA_in,
                  std::shared_ptr<HydroSourceBase> hydro_source_ptr_in) :
@@ -292,6 +298,8 @@ void Advance::FirstRKStepW(const double tau, SCGrid &arena_prev,
         tempf += grid_pt_f->Wmunu[nu]*grid_pt_f->u[nu];
     grid_pt_f->Wmunu[0] = tempf/(grid_pt_f->u[0]);
 
+    solveEigenvaluesWmunu(grid_pt_f);
+
     // make qmu[0] using transversality
     tempf = 0.0;
     for (int nu = 1; nu < 4; nu++) {
@@ -309,6 +317,62 @@ void Advance::FirstRKStepW(const double tau, SCGrid &arena_prev,
         }
     }
 }
+//Wmunu = 1d array
+void Advance::solveEigenvaluesWmunu(Cell_small *grid_pt) {
+
+    MatrixXd A = MatrixXd::Zero(4,4);
+
+    A(0,0) = grid_pt->Wmunu[0];
+    A(0,1) = - grid_pt->Wmunu[1];
+    A(0,2) = - grid_pt->Wmunu[2];
+    A(0,3) = - grid_pt->Wmunu[3];
+
+    A(1,0) = grid_pt->Wmunu[1];
+    A(1,1) = - grid_pt->Wmunu[4];
+    A(1,2) = - grid_pt->Wmunu[5];
+    A(1,3) = - grid_pt->Wmunu[6];
+
+    A(2,0) = grid_pt->Wmunu[2];
+    A(2,1) = - grid_pt->Wmunu[5];
+    A(2,2) = - grid_pt->Wmunu[7];
+    A(2,3) = - grid_pt->Wmunu[8];
+
+    A(3,0) = grid_pt->Wmunu[3];
+    A(3,1) = - grid_pt->Wmunu[6];
+    A(3,2) = - grid_pt->Wmunu[8];
+    A(3,3) = - grid_pt->Wmunu[9];
+
+    EigenSolver <MatrixXd> es;
+    es.compute(A, false);
+    
+    double min = es.eigenvalues().real()[0];
+    double max = min;
+
+    for (int i = 1; i < 4; i++){
+        double temp = es.eigenvalues().real()[i];
+        if (temp > max){
+            max = temp;
+        }else if (temp < min){
+            min = temp;
+        }
+    }
+    grid_pt->Lambdas[0] = min;
+    grid_pt->Lambdas[1] = - min - max;
+    grid_pt->Lambdas[2] = max;
+    /*
+    std::cout << grid_pt->Lambdas[0] << std::endl;
+    std::cout << grid_pt->Lambdas[1] << std::endl;
+    std::cout << grid_pt->Lambdas[2] << std::endl;
+    std::cout << es.eigenvalues()[0] << std::endl;
+    std::cout << es.eigenvalues()[1] << std::endl;
+    std::cout << es.eigenvalues()[2] << std::endl;
+    std::cout << es.eigenvalues()[3] << std::endl;
+    std::cout << "trace" << A(0,0)+A(1,1)+A(2,2)+A(3,3) << std::endl;
+    std::cout << es.eigenvalues().real()[1]+es.eigenvalues().real()[2]+es.eigenvalues().real()[3] << std::endl;
+    //./MUSIChydro tests/Gubser_flow/music_input_Gubser
+    */
+}
+
 
 // update results after RK evolution to grid_pt
 void Advance::UpdateTJbRK(const ReconstCell &grid_rk, Cell_small &grid_pt) {

@@ -13,6 +13,8 @@ class Cell_small {
     FlowVec u = {1., 0., 0., 0.};
 
     ViscousVec Wmunu = {0.};
+    std::array<double, 3> Lambdas = {0.};
+
     double pi_b = 0.;
 
 

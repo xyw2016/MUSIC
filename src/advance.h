@@ -58,12 +58,15 @@ class Advance {
     void MakeDeltaQI(const double tau, SCGrid &arena_current,
                      const int ix, const int iy, const int ieta, TJbVec &qi,
                      const int rk_flag);
+    void solveEigenvaluesWmunu(Cell_small *grid_pt);
+
     double MaxSpeed(const double tau, const int direc,
                     const ReconstCell &grid_p);
 
     double get_TJb(const ReconstCell &grid_p, const int rk_flag,
                    const int mu, const int nu);
     double get_TJb(const Cell_small &grid_p, const int mu, const int nu);
+
 };
 
 #endif  // SRC_ADVANCE_H_
