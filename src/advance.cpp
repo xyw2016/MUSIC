@@ -9,6 +9,7 @@
 #include <memory>
 #include <Eigen/Eigenvalues>
 #include <Eigen/Core>
+#include <array>
 
 #include "util.h"
 #include "data.h"
@@ -18,8 +19,6 @@
 #include "eos.h"
 #include "evolve.h"
 #include "advance.h"
-
-
 
 using Util::map_2d_idx_to_1d;
 using Util::map_1d_idx_to_2d;
@@ -32,7 +31,8 @@ Advance::Advance(const EOS &eosIn, const InitData &DATA_in,
     DATA(DATA_in), eos(eosIn),
     diss_helper(eosIn, DATA_in),
     minmod(DATA_in),
-    reconst_helper(eos, DATA_in.echo_level) {
+    reconst_helper(eos, DATA_in.echo_level),
+    transport_coeffs_(eosIn, DATA_in) {
 
     hydro_source_terms_ptr = hydro_source_ptr_in;
     flag_add_hydro_source = false;
@@ -359,18 +359,47 @@ void Advance::solveEigenvaluesWmunu(Cell_small *grid_pt) {
     grid_pt->Lambdas[0] = min;
     grid_pt->Lambdas[1] = - min - max;
     grid_pt->Lambdas[2] = max;
-    /*
-    std::cout << grid_pt->Lambdas[0] << std::endl;
-    std::cout << grid_pt->Lambdas[1] << std::endl;
-    std::cout << grid_pt->Lambdas[2] << std::endl;
-    std::cout << es.eigenvalues()[0] << std::endl;
-    std::cout << es.eigenvalues()[1] << std::endl;
-    std::cout << es.eigenvalues()[2] << std::endl;
-    std::cout << es.eigenvalues()[3] << std::endl;
-    std::cout << "trace" << A(0,0)+A(1,1)+A(2,2)+A(3,3) << std::endl;
-    std::cout << es.eigenvalues().real()[1]+es.eigenvalues().real()[2]+es.eigenvalues().real()[3] << std::endl;
-    //./MUSIChydro tests/Gubser_flow/music_input_Gubser
-    */
+}
+
+//compute n1/n3/n5/n6
+void Advance::nCausalityConstraints(Cell_small *grid_pt){
+    double eps  = grid_pt->epsilon;
+    double rhob = grid_pt->rhob;
+    double cs2 = eos.get_cs2(eps, rhob);
+
+    double transportPart_n13 = 2. * 1./transport_coeffs_.get_shear_relax_time_factor();
+    double viscousPart1_n13 = transport_coeffs_.get_lambda_piPi_coeff();
+    double viscousPart2_n13 = - 1./2. * transport_coeffs_.get_tau_pipi_coeff();
+    double transportPart_n56 = cs2 + 4./3. * 1./transport_coeffs_.get_shear_relax_time_factor() + 1./transport_coeffs_.get_bulk_relax_time_factor() * (1./3. - cs2)*(1./3. - cs2);
+    double viscousPart1_n56 = 2./3.*transport_coeffs_.get_lambda_piPi_coeff() + transport_coeffs_.get_delta_PiPi_coeff() + cs2;
+    double viscousPart2_n56 = transport_coeffs_.get_delta_pipi_coeff() + 1./3.*transport_coeffs_.get_tau_pipi_coeff() + transport_coeffs_.get_lambda_Pipi_coeff() * (1./3.- cs2) + cs2;
+/*
+    double n1 = transportPart_n13 + viscousPart1_n13 * grid_pt->pi_b + viscousPart2_n13 * abs(grid_pt->Lambdas[0]);
+    double n3 = transportPart_n13 + viscousPart1_n13 * grid_pt->pi_b + viscousPart2_n13 * grid_pt->Lambdas[2];
+    double n5 = transportPart_n56 + viscousPart1_n56 * grid_pt->pi_b + viscousPart2_n56 * grid_pt->Lambdas[0];
+    double n6 = (1. - transportPart_n56) + (1. - viscousPart1_n56) * grid_pt->pi_b + (1. - viscousPart2_n56) * grid_pt->Lambdas[2];
+*/
+    double a1 = - transportPart_n13/(viscousPart1_n13 * grid_pt->pi_b + viscousPart2_n13 * abs(grid_pt->Lambdas[0]));
+    double a3 = - transportPart_n13/(viscousPart1_n13 * grid_pt->pi_b + viscousPart2_n13 * grid_pt->Lambdas[2]);
+    double a5 = - transportPart_n56/(viscousPart1_n56 * grid_pt->pi_b + viscousPart2_n56 * grid_pt->Lambdas[0]);
+    double a6 = - (1. - transportPart_n56)/((1. - viscousPart1_n56) * grid_pt->pi_b + (1. - viscousPart2_n56) * grid_pt->Lambdas[2]);
+    std::array<double, 4> alpha = {a1, a3, a5, a6};
+
+    double minAlp = 1;
+    for (double alp : alpha){
+        if(alp > 0 && alp <= 1 && alp < minAlp){
+            minAlp = alp;
+        }
+    }
+    grid_pt->pi_b = grid_pt->pi_b * minAlp;
+    for (double& pi : grid_pt->Wmunu){
+        pi = pi * minAlp;
+    }
+    for (double& lam : grid_pt->Lambdas){
+        lam = lam * minAlp;
+    }
+    // check 'a' within 0 and 1 and find the minimum value; if everything is outside of the range, don't reduce Pi and Lambdas
+    // if there is a minum value, reduce the size of Pi and lambdas by a -> a * Pi and a * Lambdas
 }
 
 

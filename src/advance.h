@@ -11,12 +11,15 @@
 #include "u_derivative.h"
 #include "reconst.h"
 #include "hydro_source_base.h"
+#include "transport_coeffs.h"
 #include "pretty_ostream.h"
 
 class Advance {
  private:
     const InitData &DATA;
     const EOS &eos;
+    TransportCoeffs transport_coeffs_;
+
     std::shared_ptr<HydroSourceBase> hydro_source_terms_ptr;
 
     Diss diss_helper;
@@ -59,6 +62,7 @@ class Advance {
                      const int ix, const int iy, const int ieta, TJbVec &qi,
                      const int rk_flag);
     void solveEigenvaluesWmunu(Cell_small *grid_pt);
+    void nCausalityConstraints(Cell_small *grid_pt);
 
     double MaxSpeed(const double tau, const int direc,
                     const ReconstCell &grid_p);
