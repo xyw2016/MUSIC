@@ -67,6 +67,10 @@ class TransportCoeffs {
     double get_l_qpi_coeff() const { return(0.); }
     double get_lambda_qpi_coeff() const { return(0.); }
 
+
+    //causality modification factor
+    double get_causality_bulk_factor(double cs2, double bulkPi, double Lam3);
+
 };
 
 #endif  // SRC_TRANSPORT_H_

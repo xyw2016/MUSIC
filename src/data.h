@@ -241,6 +241,11 @@ typedef struct init_data {
     double dNdyptdpt_eta_min;
     double dNdyptdpt_eta_max;
 
+    // causality modification method
+    int causality_method;
+    // 0: don't do anything
+    // 1: questrevert
+    // 2: modify bulk relaxation time
 } InitData;
 
 #endif  // SRC_DATA_H_

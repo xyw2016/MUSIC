@@ -646,12 +646,11 @@ double Diss::Make_uPiSource(const double tau, const Cell_small *grid_pt,
                       *csfactor)
                 /std::max(epsilon + pressure, small_eps));
     }
+    
+    if (DATA.causality_method == 2){
+        Bulk_Relax_time = Bulk_Relax_time/transport_coeffs_.get_causality_bulk_factor(cs2, grid_pt->pi_b, grid_pt->Lambdas[2]);
+    }
 
-    //Relax_Mod_Factor = ;
-    //Bulk_Relax_time = Bulk_Relax_time * Relax_Mod_Factor
-    //define transport coefficient
-
-    // avoid overflow or underflow of the bulk relaxation time
     Bulk_Relax_time = (
         std::min(10., std::max(3.*DATA.delta_tau, Bulk_Relax_time)));
 

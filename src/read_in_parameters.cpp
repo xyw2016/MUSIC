@@ -186,6 +186,19 @@ InitData read_in_parameters(std::string input_file) {
     }
     parameter_list.mode = tempmode;
 
+    //Causality method
+    // 0 : do nothing
+    // 1 : questrevert
+    // 2 : modify bulk relaxation time
+    int tempcausalitymode = 0;
+    tempinput = Util::StringFind4(input_file, "causality_method");
+    if (tempinput != "empty") {
+        istringstream(tempinput) >> tempcausalitymode;
+    }
+    parameter_list.causality_method = tempcausalitymode;
+
+
+
     //EOS_to_use:
     // 0: ideal gas
     // 1: EOS-Q from azhydro
