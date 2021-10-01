@@ -9,7 +9,7 @@
 #include <memory>
 #include <Eigen/Eigenvalues>
 #include <Eigen/Core>
-#include <array>
+#include <vector>
 
 #include "util.h"
 #include "data.h"
@@ -312,6 +312,9 @@ void Advance::FirstRKStepW(const double tau, SCGrid &arena_prev,
     // reduce Wmunu using the QuestRevert algorithm
     if (DATA.Initial_profile != 0 && DATA.Initial_profile != 1) {
         QuestRevert(tau, grid_pt_f, ieta, ix, iy);
+        if (DATA.causality_method == 1){
+            nCausalityConstraints(grid_pt_f);
+        }
         if (DATA.turn_on_diff == 1) {
             QuestRevert_qmu(tau, grid_pt_f, ieta, ix, iy);
         }
@@ -361,47 +364,101 @@ void Advance::solveEigenvaluesWmunu(Cell_small *grid_pt) {
     grid_pt->Lambdas[2] = max;
 }
 
-//compute n1/n3/n5/n6
+//check causality first, if violated, calculate alpha and store them in an array. (alpha = 1 otherwise), pick the min alpha between 0 and 1
+/*
+    double a1 = - transportPart_n13/(viscousPart1_n13 * grid_pt->pi_b / (eps + P) + viscousPart2_n13 * abs(grid_pt->Lambdas[0])/ (eps + P));
+    double a3 = - transportPart_n13/(viscousPart1_n13 * grid_pt->pi_b / (eps + P) + viscousPart2_n13 * grid_pt->Lambdas[2] / (eps + P));
+    double a5 = - transportPart_n56/(viscousPart1_n56 * grid_pt->pi_b / (eps + P) + viscousPart2_n56 * grid_pt->Lambdas[0] / (eps + P));
+    double a6 = - (1. - transportPart_n56)/((1. - viscousPart1_n56) * grid_pt->pi_b / (eps + P) + (1. - viscousPart2_n56) * grid_pt->Lambdas[2] / (eps + P));
+
+*/
 void Advance::nCausalityConstraints(Cell_small *grid_pt){
     double eps  = grid_pt->epsilon;
     double rhob = grid_pt->rhob;
     double cs2 = eos.get_cs2(eps, rhob);
-
+    double P = eos.get_pressure(eps, rhob);
     double transportPart_n13 = 2. * 1./transport_coeffs_.get_shear_relax_time_factor();
     double viscousPart1_n13 = transport_coeffs_.get_lambda_piPi_coeff();
     double viscousPart2_n13 = - 1./2. * transport_coeffs_.get_tau_pipi_coeff();
-    double transportPart_n56 = cs2 + 4./3. * 1./transport_coeffs_.get_shear_relax_time_factor() + 1./transport_coeffs_.get_bulk_relax_time_factor() * (1./3. - cs2)*(1./3. - cs2);
+    double transportPart_n56 = cs2 + 4./3. * 1./transport_coeffs_.get_shear_relax_time_factor() + 1./transport_coeffs_.get_bulk_relax_time_factor() * (1./3. - cs2) * (1./3. - cs2);
     double viscousPart1_n56 = 2./3.*transport_coeffs_.get_lambda_piPi_coeff() + transport_coeffs_.get_delta_PiPi_coeff() + cs2;
     double viscousPart2_n56 = transport_coeffs_.get_delta_pipi_coeff() + 1./3.*transport_coeffs_.get_tau_pipi_coeff() + transport_coeffs_.get_lambda_Pipi_coeff() * (1./3.- cs2) + cs2;
-/*
-    double n1 = transportPart_n13 + viscousPart1_n13 * grid_pt->pi_b + viscousPart2_n13 * abs(grid_pt->Lambdas[0]);
-    double n3 = transportPart_n13 + viscousPart1_n13 * grid_pt->pi_b + viscousPart2_n13 * grid_pt->Lambdas[2];
-    double n5 = transportPart_n56 + viscousPart1_n56 * grid_pt->pi_b + viscousPart2_n56 * grid_pt->Lambdas[0];
-    double n6 = (1. - transportPart_n56) + (1. - viscousPart1_n56) * grid_pt->pi_b + (1. - viscousPart2_n56) * grid_pt->Lambdas[2];
-*/
-    double a1 = - transportPart_n13/(viscousPart1_n13 * grid_pt->pi_b + viscousPart2_n13 * abs(grid_pt->Lambdas[0]));
-    double a3 = - transportPart_n13/(viscousPart1_n13 * grid_pt->pi_b + viscousPart2_n13 * grid_pt->Lambdas[2]);
-    double a5 = - transportPart_n56/(viscousPart1_n56 * grid_pt->pi_b + viscousPart2_n56 * grid_pt->Lambdas[0]);
-    double a6 = - (1. - transportPart_n56)/((1. - viscousPart1_n56) * grid_pt->pi_b + (1. - viscousPart2_n56) * grid_pt->Lambdas[2]);
-    std::array<double, 4> alpha = {a1, a3, a5, a6};
+
+
+    double n1 = transportPart_n13 + viscousPart1_n13 * grid_pt->pi_b / (eps + P) + viscousPart2_n13 * abs(grid_pt->Lambdas[0]) / (eps + P);
+    double n3 = transportPart_n13 + viscousPart1_n13 * grid_pt->pi_b / (eps + P) + viscousPart2_n13 * grid_pt->Lambdas[2] / (eps + P);
+    double n5 = transportPart_n56 + viscousPart1_n56 * grid_pt->pi_b / (eps + P) + viscousPart2_n56 * grid_pt->Lambdas[0] / (eps + P);
+    double n6 = (1. - transportPart_n56) + (1. - viscousPart1_n56) * grid_pt->pi_b / (eps + P) + (1. - viscousPart2_n56) * grid_pt->Lambdas[2] / (eps + P);
+    std::vector<double> nCondition {n1, n3, n5, n6};
 
     double minAlp = 1;
-    for (double alp : alpha){
-        if(alp > 0 && alp <= 1 && alp < minAlp){
-            minAlp = alp;
+
+    for (int i = 0; i < nCondition.size(); i++){
+        double alp = 1;
+        if (nCondition[i] < 0){
+            switch(i){
+                case 0: //n1
+                    alp = - transportPart_n13/(viscousPart1_n13 * grid_pt->pi_b / (eps + P) + viscousPart2_n13 * abs(grid_pt->Lambdas[0])/ (eps + P));        
+                    break;
+                case 1: //n3
+                    alp = - transportPart_n13/(viscousPart1_n13 * grid_pt->pi_b / (eps + P) + viscousPart2_n13 * grid_pt->Lambdas[2] / (eps + P));
+                    break;
+                case 2: //n5
+                    alp = - transportPart_n56/(viscousPart1_n56 * grid_pt->pi_b / (eps + P) + viscousPart2_n56 * grid_pt->Lambdas[0] / (eps + P));
+                    break;
+                case 3: //n6
+                    alp = - (1. - transportPart_n56)/((1. - viscousPart1_n56) * grid_pt->pi_b / (eps + P) + (1. - viscousPart2_n56) * grid_pt->Lambdas[2] / (eps + P));
+                    break;
+            }
         }
+        if (alp > 0 && alp < minAlp){
+            minAlp = alp;
+        }else if (alp < 0){
+            minAlp = 0;
+        } 
     }
+
     grid_pt->pi_b = grid_pt->pi_b * minAlp;
+
     for (double& pi : grid_pt->Wmunu){
         pi = pi * minAlp;
     }
     for (double& lam : grid_pt->Lambdas){
         lam = lam * minAlp;
     }
-    // check 'a' within 0 and 1 and find the minimum value; if everything is outside of the range, don't reduce Pi and Lambdas
-    // if there is a minum value, reduce the size of Pi and lambdas by a -> a * Pi and a * Lambdas
-}
 
+    // test when it violates
+    double N1 = transportPart_n13 + viscousPart1_n13 * grid_pt->pi_b / (eps + P) + viscousPart2_n13 * abs(grid_pt->Lambdas[0]) / (eps + P);
+    double N3 = transportPart_n13 + viscousPart1_n13 * grid_pt->pi_b / (eps + P) + viscousPart2_n13 * grid_pt->Lambdas[2] / (eps + P);
+    double N5 = transportPart_n56 + viscousPart1_n56 * grid_pt->pi_b / (eps + P) + viscousPart2_n56 * grid_pt->Lambdas[0] / (eps + P);
+    double N6 = (1. - transportPart_n56) + (1. - viscousPart1_n56) * grid_pt->pi_b / (eps + P) + (1. - viscousPart2_n56) * grid_pt->Lambdas[2] / (eps + P);
+    std::vector<double> nACondition {N1, N3, N5, N6};
+    for (int i = 0; i < nACondition.size(); i++){
+        if (nACondition[i] < -1e-15 && eps > 1e-15){
+            switch(i){
+                case 0: //n1
+                    std::cout << "N1 " << nACondition[i] << std::endl;
+                    break;
+                case 1: //n3
+                    std::cout << "N3 " << nACondition[i] << std::endl;
+                    break;
+                case 2: //n5
+                    std::cout << "N5 " << nACondition[i] << std::endl;
+                    std::cout<<"alpha value " << minAlp << std::endl;
+                    std::cout<< "cs2 " << cs2 << std::endl;
+                    std::cout<< "eps " << eps << std::endl;
+                    break;
+                case 3: //n6
+                    std::cout << "N6 " << nACondition[i] << std::endl;
+                    std::cout<<"alpha value " << minAlp << std::endl;
+                    std::cout<< "cs2 " << cs2 << std::endl;
+                    std::cout<< "eps " << eps << std::endl;
+                    break;
+            }
+        }
+    }
+//    std::cout << "------------------------" << std::endl;
+}
 
 // update results after RK evolution to grid_pt
 void Advance::UpdateTJbRK(const ReconstCell &grid_rk, Cell_small &grid_pt) {
