@@ -118,6 +118,11 @@ void Init::InitArena(SCGrid &arena_prev, SCGrid &arena_current,
         DATA.tau0 = std::max(DATA.tau0, tau_overlap) - DATA.delta_tau;
         music_message << "tau0 = " << DATA.tau0 << " fm/c.";
         music_message.flush("info");
+    } else if (DATA.Initial_profile == 14) {
+        double tau_overlap = 2.*7./(sinh(DATA.beam_rapidity));
+        DATA.tau0 = std::max(DATA.tau0, tau_overlap) - DATA.delta_tau;
+        music_message << "tau0 = " << DATA.tau0 << " fm/c.";
+        music_message.flush("info");
     } else if (DATA.Initial_profile == 13 || DATA.Initial_profile == 131) {
         DATA.tau0 = (hydro_source_terms_ptr.lock()->get_source_tau_min()
                      - DATA.delta_tau);
@@ -244,6 +249,13 @@ void Init::InitTJb(SCGrid &arena_prev, SCGrid &arena_current) {
         for (int ieta = 0; ieta < arena_current.nEta(); ieta++) {
             initial_with_zero_XY(ieta, arena_prev, arena_current);
         }
+    } else if (DATA.Initial_profile == 14) {
+        music_message.info(" ----- information on initial distribution -----");
+        music_message << "file name used: " << DATA.initName_TA << " and "
+                      << DATA.initName_TB;
+        music_message.flush("info");
+
+        initial_MCGlb_with_rhob(arena_prev, arena_current);
     } else if (DATA.Initial_profile == 13 || DATA.Initial_profile == 131) {
         music_message.info("Initialize hydro with source terms");
         #pragma omp parallel for
@@ -776,6 +788,24 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                             *norm_odd*eta/DATA.beam_rapidity)*eta_envelop)
                         /Util::hbarc);
                 } else if (DATA.Initial_profile == 111) {
+                    double y_CM = atanh(
+                        (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
+                        /(temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]
+                          + Util::small_eps)
+                        *tanh(DATA.beam_rapidity));
+                    // local energy density [1/fm]
+                    double E_lrf = (
+                        (temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy])
+                        *Util::m_N*cosh(DATA.beam_rapidity)/Util::hbarc);
+                    double eta0 = std::min(DATA.eta_flat/2.0,
+                                    std::abs(DATA.beam_rapidity - y_CM));
+                    double eta_envelop = eta_profile_plateau(
+                                    eta - y_CM, eta0, DATA.eta_fall_off);
+                    double E_norm = (
+                        DATA.tau0*energy_eta_profile_normalisation(
+                                    y_CM, eta0, DATA.eta_fall_off));
+                    epsilon = E_lrf*eta_envelop/E_norm;
+                } else if (DATA.Initial_profile == 14) {
                     double y_CM = atanh(
                         (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
                         /(temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]
