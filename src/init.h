@@ -76,6 +76,8 @@ class Init {
         const double y_CM, const double eta_0, const double sigma_eta) const;
     double Pz_eta_profile_normalisation(
         const double eta_0, const double sigma_eta) const;
+    double energy_eta_LR_normalization(
+        const double y_CM, const double eta_0) const;
     double eta_rhob_profile_normalisation  (const double eta) const;
     double eta_profile_left_factor         (const double eta) const;
     double eta_profile_right_factor        (const double eta) const;

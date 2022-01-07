@@ -75,6 +75,12 @@ InitData read_in_parameters(std::string input_file) {
     if (tempinput != "empty")
         istringstream(tempinput) >> temp_rhob_flag;
     parameter_list.initial_eta_rhob_profile = temp_rhob_flag;
+    
+    int temp_rhob_shift_flag = 1;
+    tempinput = Util::StringFind4(input_file, "initial_rhob_shift");
+    if (tempinput != "empty")
+        istringstream(tempinput) >> temp_rhob_shift_flag;
+    parameter_list.initial_rhob_shift = temp_rhob_shift_flag;
 
     //initialize_with_entropy:
     //0: scale with energy density
@@ -439,6 +445,12 @@ InitData read_in_parameters(std::string input_file) {
     if (tempinput != "empty")
         istringstream ( tempinput ) >> tempsFactor;
     parameter_list.sFactor = tempsFactor;
+    
+    double tempeFactor   = 1.0;
+    tempinput = Util::StringFind4(input_file, "e_factor");
+    if (tempinput != "empty")
+        istringstream ( tempinput ) >> tempeFactor;
+    parameter_list.eFactor = tempeFactor;
 
     // for calculation of spectra:
     // max_pseudorapidity:

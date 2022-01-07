@@ -752,20 +752,50 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
         if (DATA.boost_invariant) {
             eta = 0.0;
         }
+        
         double eta_rhob_left  = eta_rhob_left_factor(eta);
         double eta_rhob_right = eta_rhob_right_factor(eta);
 
         for (int ix = 0; ix < nx; ix++) {
             for (int iy = 0; iy< ny; iy++) {
+                
+                // baryon profile
                 double rhob = 0.0;
-                double epsilon = 0.0;
+                double rhob_L = 0.0;
+                double rhob_R = 0.0;
+                
+                double eta_rhob_shift_left = 0.0;
+                double eta_rhob_shift_right = 0.0;
+                
+                double y_CM = 0.0;
+                
+                if (DATA.Initial_profile == 111 || DATA.Initial_profile == 14) {
+                    y_CM = atanh(
+                        (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
+                        /(temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]
+                          + Util::small_eps)
+                        *tanh(DATA.beam_rapidity));
+                    eta_rhob_shift_left  = eta_rhob_left_factor(eta-y_CM);
+                    eta_rhob_shift_right = eta_rhob_right_factor(eta-y_CM);
+                }
+
                 if (DATA.turn_on_rhob == 1) {
-                    rhob = (  temp_profile_TA[ix][iy]*eta_rhob_right
-                            + temp_profile_TB[ix][iy]*eta_rhob_left);
+                    if (DATA.initial_rhob_shift == 1){
+                        rhob_R = temp_profile_TA[ix][iy]*eta_rhob_shift_right;
+                        rhob_L = temp_profile_TB[ix][iy]*eta_rhob_shift_left;
+                        rhob = (rhob_R + rhob_L);
+                    } else {
+                        rhob_R = temp_profile_TA[ix][iy]*eta_rhob_right;
+                        rhob_L = temp_profile_TB[ix][iy]*eta_rhob_left;
+                        rhob = (rhob_R + rhob_L);
+                    }
                 } else {
                     rhob = 0.0;
                 }
 
+                // energy profile
+                double epsilon = 0.0;
+                
                 if (DATA.Initial_profile == 11) {
                     const double eta_0 = DATA.eta_flat/2.;
                     const double sigma_eta = DATA.eta_fall_off;
@@ -787,12 +817,8 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                           + (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
                             *norm_odd*eta/DATA.beam_rapidity)*eta_envelop)
                         /Util::hbarc);
+                    
                 } else if (DATA.Initial_profile == 111) {
-                    double y_CM = atanh(
-                        (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
-                        /(temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]
-                          + Util::small_eps)
-                        *tanh(DATA.beam_rapidity));
                     // local energy density [1/fm]
                     double E_lrf = (
                         (temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy])
@@ -805,16 +831,26 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                         DATA.tau0*energy_eta_profile_normalisation(
                                     y_CM, eta0, DATA.eta_fall_off));
                     epsilon = E_lrf*eta_envelop/E_norm;
+                    
                 } else if (DATA.Initial_profile == 14) {
-                    double y_CM = atanh(
-                        (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
-                        /(temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]
-                          + Util::small_eps)
-                        *tanh(DATA.beam_rapidity));
-                    // local energy density [1/fm]
+                    // local total energy density [1/fm]
                     double E_lrf = (
                         (temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy])
                         *Util::m_N*cosh(DATA.beam_rapidity)/Util::hbarc);
+                    
+                    // left and right fireballs
+                    double epsilon_R = DATA.eFactor*temp_profile_TA[ix][iy]*eta_rhob_shift_right;
+                    double epsilon_L = DATA.eFactor*temp_profile_TB[ix][iy]*eta_rhob_shift_left;
+                    
+                    //double epsilon_R = eos.get_s2e(s_R, rhob_R);
+                    //double epsilon_L = eos.get_s2e(s_L, rhob_L);
+                    const double eta_0 = DATA.eta_flat/2.;
+                    const double E_LR_norm = energy_eta_LR_normalization(y_CM, eta_0);
+                    
+                    double E_LR =  0.5 * DATA.eFactor * (
+                        temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]) * E_LR_norm;
+                    
+                    // central fireball
                     double eta0 = std::min(DATA.eta_flat/2.0,
                                     std::abs(DATA.beam_rapidity - y_CM));
                     double eta_envelop = eta_profile_plateau(
@@ -822,10 +858,13 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                     double E_norm = (
                         DATA.tau0*energy_eta_profile_normalisation(
                                     y_CM, eta0, DATA.eta_fall_off));
-                    epsilon = E_lrf*eta_envelop/E_norm;
+                    
+                    // longitudinal energy profile: left+central+right
+                    epsilon = epsilon_L + (E_lrf-E_LR)*eta_envelop/E_norm + epsilon_R;
                 }
                 epsilon = std::max(Util::small_eps, epsilon);
-
+                
+                // initialization
                 arena_current(ix, iy, ieta).epsilon = epsilon;
                 arena_current(ix, iy, ieta).rhob = rhob;
 
@@ -1098,6 +1137,34 @@ double Init::Pz_eta_profile_normalisation(
     return(norm);
 }
 
+
+double Init::energy_eta_LR_normalization(
+        const double y_CM, const double eta_0) const {
+    // this function returns the total energy in the central fireball
+    // \int deta tau_0 (eta_rhob_left_factor(eta - y_CM, eta_0)+eta_rhob_right_factor(eta - y_CM, eta_0))*cosh(eta) =
+    // 2*\int deta tau_0 eta_rhob_left_factor(eta - y_CM, eta_0)*cosh(eta)
+    
+    // prefactor in f_R
+    double delta_eta_1 = DATA.eta_rhob_width_1;
+    double delta_eta_2 = DATA.eta_rhob_width_2;
+    double bNorm        = 2./(sqrt(2.*M_PI)*(delta_eta_1 + delta_eta_2));
+    
+    // right half Gaussian in f_R
+    double f1 = (  exp( eta_0)*erfc(-sqrt(0.5)*delta_eta_1)
+                 + exp(-eta_0)*erfc( sqrt(0.5)*delta_eta_1));
+    double f3 = 0.5*sqrt(M_PI/2.)*delta_eta_1*exp(delta_eta_1*delta_eta_1/2.);
+    
+    // left half Gaussian in f_R
+    double f2 = (  exp( eta_0)*erfc( sqrt(0.5)*delta_eta_2)
+                 + exp(-eta_0)*erfc(-sqrt(0.5)*delta_eta_2));
+    double f4 = 0.5*sqrt(M_PI/2.)*delta_eta_2*exp(delta_eta_2*delta_eta_2/2.);
+
+    // 2 is for f_R and f_L
+    double Norm = 2*bNorm*(f1*f3+f2*f4)*cosh(y_CM);
+    return(Norm);
+}
+
+
 double Init::eta_profile_left_factor(const double eta) const {
     // this function return the eta envelope for projectile
     double res = eta_profile_plateau(
@@ -1122,6 +1189,7 @@ double Init::eta_profile_right_factor(const double eta) const {
     }
     return(res);
 }
+
 
 double Init::eta_rhob_profile_normalisation(const double eta) const {
     // this function return the eta envelope profile for net baryon density
@@ -1161,14 +1229,14 @@ double Init::eta_rhob_left_factor(const double eta) const {
     double tau0        = DATA.tau0;
     double delta_eta_1 = DATA.eta_rhob_width_1;
     double delta_eta_2 = DATA.eta_rhob_width_2;
-    double norm        = 2./(sqrt(M_PI)*tau0*(delta_eta_1 + delta_eta_2));
+    double norm        = 2./(sqrt(2.*M_PI)*tau0*(delta_eta_1 + delta_eta_2));
     double exp_arg     = 0.0;
     if (eta < eta_0) {
         exp_arg = (eta - eta_0)/delta_eta_1;
     } else {
         exp_arg = (eta - eta_0)/delta_eta_2;
     }
-    double res = norm*exp(-exp_arg*exp_arg);
+    double res = norm*exp(-exp_arg*exp_arg/2.);
     return(res);
 }
 
@@ -1178,14 +1246,14 @@ double Init::eta_rhob_right_factor(const double eta) const {
     double tau0        = DATA.tau0;
     double delta_eta_1 = DATA.eta_rhob_width_1;
     double delta_eta_2 = DATA.eta_rhob_width_2;
-    double norm        = 2./(sqrt(M_PI)*tau0*(delta_eta_1 + delta_eta_2));
+    double norm        = 2./(sqrt(2.*M_PI)*tau0*(delta_eta_1 + delta_eta_2));
     double exp_arg     = 0.0;
     if (eta < eta_0) {
         exp_arg = (eta - eta_0)/delta_eta_2;
     } else {
         exp_arg = (eta - eta_0)/delta_eta_1;
     }
-    double res = norm*exp(-exp_arg*exp_arg);
+    double res = norm*exp(-exp_arg*exp_arg/2.);
     return(res);
 }
 
@@ -1195,9 +1263,9 @@ void Init::output_initial_density_profiles(SCGrid &arena) {
     // for checking purpose
     music_message.info("output initial density profiles into a file... ");
     std::ofstream of("check_initial_density_profiles.dat");
-    of << "# x(fm)  y(fm)  eta  ed(GeV/fm^3)";
+    of << "# x(fm)  y(fm)  eta utau ueta(1/fm) ed(GeV/fm^3) T(GeV)";
     if (DATA.turn_on_rhob == 1)
-        of << "  rhob(1/fm^3)";
+        of << "  rhob(1/fm^3) mu(GeV)";
     of << std::endl;
     for (int ieta = 0; ieta < arena.nEta(); ieta++) {
         double eta_local = (DATA.delta_eta)*ieta - (DATA.eta_size)/2.0;
@@ -1205,11 +1273,21 @@ void Init::output_initial_density_profiles(SCGrid &arena) {
             double x_local = -DATA.x_size/2. + ix*DATA.delta_x;
             for(int iy = 0; iy < arena.nY(); iy++) {
                 double y_local = -DATA.y_size/2. + iy*DATA.delta_y;
+                double e_local = arena(ix,iy,ieta).epsilon;
+                double rhob_local = arena(ix,iy,ieta).rhob;
+                double utau         = arena(ix, iy, ieta).u[0];
+                double ueta         = arena(ix, iy, ieta).u[3];
+                double T_local      = eos.get_temperature(e_local, rhob_local);
+                double muB_local    = eos.get_muB(e_local, rhob_local);
+
                 of << std::scientific << std::setw(18) << std::setprecision(8)
                    << x_local << "   " << y_local << "   "
-                   << eta_local << "   " << arena(ix,iy,ieta).epsilon*hbarc;
+                   << eta_local << "   " << utau << "   " 
+                   << ueta << "   " << e_local*hbarc
+                   << "   " << T_local*hbarc;
                 if (DATA.turn_on_rhob == 1) {
-                    of << "   " << arena(ix,iy,ieta).rhob;
+                    of << "   " << rhob_local
+                    << "   " << muB_local*hbarc;
                 }
                 of << std::endl;
             }
