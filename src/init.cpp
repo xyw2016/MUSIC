@@ -120,7 +120,7 @@ void Init::InitArena(SCGrid &arena_prev, SCGrid &arena_current,
         music_message.flush("info");
     } else if (DATA.Initial_profile == 14) {
         double tau_overlap = 2.*7./(sinh(DATA.beam_rapidity));
-        DATA.tau0 = std::max(DATA.tau0, tau_overlap) - DATA.delta_tau;
+        DATA.tau0 = std::max(DATA.tau0, tau_overlap);
         music_message << "tau0 = " << DATA.tau0 << " fm/c.";
         music_message.flush("info");
     } else if (DATA.Initial_profile == 13 || DATA.Initial_profile == 131) {
@@ -775,12 +775,12 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                         /(temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]
                           + Util::small_eps)
                         *tanh(DATA.beam_rapidity));
-                    eta_rhob_shift_left  = eta_rhob_left_factor(eta-y_CM);
-                    eta_rhob_shift_right = eta_rhob_right_factor(eta-y_CM);
                 }
 
                 if (DATA.turn_on_rhob == 1) {
                     if (DATA.initial_rhob_shift == 1){
+                        eta_rhob_shift_left  = eta_rhob_left_factor(eta-y_CM);
+                        eta_rhob_shift_right = eta_rhob_right_factor(eta-y_CM);
                         rhob_R = temp_profile_TA[ix][iy]*eta_rhob_shift_right;
                         rhob_L = temp_profile_TB[ix][iy]*eta_rhob_shift_left;
                         rhob = (rhob_R + rhob_L);
@@ -844,15 +844,15 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                     
                     //double epsilon_R = eos.get_s2e(s_R, rhob_R);
                     //double epsilon_L = eos.get_s2e(s_L, rhob_L);
-                    const double eta_0 = DATA.eta_flat/2.;
-                    const double E_LR_norm = energy_eta_LR_normalization(y_CM, eta_0);
+                    const double eta0 = DATA.eta_flat/2.;
+                    const double E_LR_norm = energy_eta_LR_normalization(y_CM, eta0);
                     
                     double E_LR =  0.5 * DATA.eFactor * (
                         temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]) * E_LR_norm;
                     
                     // central fireball
-                    double eta0 = std::min(DATA.eta_flat/2.0,
-                                    std::abs(DATA.beam_rapidity - y_CM));
+                    //double eta0 = std::min(DATA.eta_flat/2.0,
+                    //                std::abs(DATA.beam_rapidity - y_CM));
                     double eta_envelop = eta_profile_plateau(
                                     eta - y_CM, eta0, DATA.eta_fall_off);
                     double E_norm = (
