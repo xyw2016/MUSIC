@@ -131,6 +131,9 @@ class Cell_info {
                               const int ix, const int iy, const int ieta,
                               const double tau);
 
+    void output_anisotropy_evolution(
+                const double tau, SCGrid &arena);
+
     //! This function outputs system's momentum anisotropy as a function of tau
     void output_momentum_anisotropy_vs_tau(
                 const double tau, const double eta_min, const double eta_max,
