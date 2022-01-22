@@ -1916,8 +1916,18 @@ void Cell_info::output_anisotropy_evolution(
     filename4 << "vx_evolution.dat";
     std::fstream of4;
     if (std::abs(tau - DATA.tau0) < 1e-10) {
+        
+        int n_skip_tau     = DATA.output_evolution_every_N_timesteps;
+        double output_dtau = DATA.delta_tau*n_skip_tau;
+        int itau = static_cast<int>((tau - DATA.tau0)/(output_dtau) + 0.1);
+
+        const int output_neta      = static_cast<int>(arena.nEta());
+        const double output_deta   = DATA.delta_eta;
+        const double output_etamin = - DATA.eta_size/2.;
+
         of4.open(filename4.str().c_str(), std::fstream::out);
-        of4 << "# tau(fm)  eta_s  vx_ed vx_nB"<< endl;
+        of4 << scientific << setw(18) << setprecision(4) << DATA.tau0 << "  " << output_dtau << "  " << output_neta << "  " << output_deta << "  " << output_etamin << "  " << 0.0 << endl;
+        of4 << "# tau(fm)  eta_s vx_ed(utau) vx_nB(utau) vx_ed(ut) vx_nB(ut)"<< endl;
     } else {
         of4.open(filename4.str().c_str(),
                 std::fstream::out | std::fstream::app);
