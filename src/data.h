@@ -40,6 +40,7 @@ typedef struct init_data {
     double beam_rapidity;
 
     int initial_rhob_shift;
+    int symmetrize_rhob_profile;
     int initial_eta_rhob_profile;
     // envelope function parameter for energy density in eta_s direction
     double eta_fall_off;
@@ -81,6 +82,8 @@ typedef struct init_data {
 
     double sFactor;     //!< overall normalization on energy density profile
     double eFactor;
+    double eNorm;
+    double rhobNorm;
     int whichEOS;       //!< type of EoS
     //! flag for boost invariant simulations
     bool boost_invariant;

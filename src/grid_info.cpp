@@ -1926,8 +1926,8 @@ void Cell_info::output_anisotropy_evolution(
         const double output_etamin = - DATA.eta_size/2.;
 
         of4.open(filename4.str().c_str(), std::fstream::out);
-        of4 << scientific << setw(18) << setprecision(4) << DATA.tau0 << "  " << output_dtau << "  " << output_neta << "  " << output_deta << "  " << output_etamin << "  " << 0.0 << endl;
         of4 << "# tau(fm)  eta_s vx_ed(utau) vx_nB(utau) vx_ed(ut) vx_nB(ut)"<< endl;
+        of4 << scientific << setw(18) << setprecision(4) << DATA.tau0 << "  " << output_dtau << "  " << output_neta << "  " << output_deta << "  " << output_etamin << "  " << 0.0 << endl;
     } else {
         of4.open(filename4.str().c_str(),
                 std::fstream::out | std::fstream::app);
@@ -2112,10 +2112,10 @@ void Cell_info::output_anisotropy_evolution(
 
         of4 << scientific << setw(18) << setprecision(8)
             << tau << "  " << eta << "  "
-            << vx_ed_num[0]/vx_ed_den[0] << "  "
-            << vx_ed_num[0]/vx_ed_den[1] << "  "
-            << vx_nB_num[0]/vx_nB_den[0] << "  "
-            << vx_nB_num[0]/vx_nB_den[1] << endl;
+            << vx_ed_num[0]/std::max(vx_ed_den[0], small_eps) << "  "
+            << vx_ed_num[0]/std::max(vx_ed_den[1], small_eps) << "  "
+            << vx_nB_num[0]/std::max(vx_nB_den[0], small_eps) << "  "
+            << vx_nB_num[0]/std::max(vx_nB_den[1], small_eps) << endl;
     }
     of.close();
     of1.close();

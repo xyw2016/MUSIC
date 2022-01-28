@@ -781,14 +781,23 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                     if (DATA.initial_rhob_shift == 1){
                         eta_rhob_shift_left  = eta_rhob_left_factor(eta-y_CM);
                         eta_rhob_shift_right = eta_rhob_right_factor(eta-y_CM);
-                        rhob_R = temp_profile_TA[ix][iy]*eta_rhob_shift_right;
-                        rhob_L = temp_profile_TB[ix][iy]*eta_rhob_shift_left;
-                        rhob = (rhob_R + rhob_L);
+                        if (DATA.symmetrize_rhob_profile == 0){
+                            rhob_R = temp_profile_TA[ix][iy]*eta_rhob_shift_right;
+                            rhob_L = temp_profile_TB[ix][iy]*eta_rhob_shift_left;
+                        } else {
+                            rhob_R = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_shift_right;
+                            rhob_L = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_shift_left;
+                        }
                     } else {
-                        rhob_R = temp_profile_TA[ix][iy]*eta_rhob_right;
-                        rhob_L = temp_profile_TB[ix][iy]*eta_rhob_left;
-                        rhob = (rhob_R + rhob_L);
+                        if (DATA.symmetrize_rhob_profile == 0){
+                            rhob_R = temp_profile_TA[ix][iy] * eta_rhob_right;
+                            rhob_L = temp_profile_TB[ix][iy] * eta_rhob_left;
+                        } else {
+                            rhob_R = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_right;
+                            rhob_L = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_left;
+                        }
                     }
+                    rhob = DATA.rhobNorm * (rhob_R + rhob_L);
                 } else {
                     rhob = 0.0;
                 }
@@ -839,8 +848,8 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                         *Util::m_N*cosh(DATA.beam_rapidity)/Util::hbarc);
                     
                     // left and right fireballs
-                    double epsilon_R = DATA.eFactor*temp_profile_TA[ix][iy]*eta_rhob_shift_right;
-                    double epsilon_L = DATA.eFactor*temp_profile_TB[ix][iy]*eta_rhob_shift_left;
+                    double epsilon_R = DATA.eFactor * rhob_R;
+                    double epsilon_L = DATA.eFactor * rhob_L;
                     
                     //double epsilon_R = eos.get_s2e(s_R, rhob_R);
                     //double epsilon_L = eos.get_s2e(s_L, rhob_L);
@@ -861,6 +870,8 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                     
                     // longitudinal energy profile: left+central+right
                     epsilon = epsilon_L + (E_lrf-E_LR)*eta_envelop/E_norm + epsilon_R;
+
+                    epsilon = DATA.eNorm * epsilon;
                 }
                 epsilon = std::max(Util::small_eps, epsilon);
                 
