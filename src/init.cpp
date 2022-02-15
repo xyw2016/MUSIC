@@ -108,7 +108,7 @@ void Init::InitArena(SCGrid &arena_prev, SCGrid &arena_current,
         music_message << "deta=" << DATA.delta_eta << ", dx=" << DATA.delta_x
                       << ", dy=" << DATA.delta_y;
         music_message.flush("info");
-    } else if (DATA.Initial_profile == 11 || DATA.Initial_profile == 111) {
+    } else if (DATA.Initial_profile == 11 || DATA.Initial_profile == 110 || DATA.Initial_profile == 111) {
         double tau_overlap = 2.*7./(sinh(DATA.beam_rapidity));
         DATA.tau0 = std::max(DATA.tau0, tau_overlap);
         music_message << "tau0 = " << DATA.tau0 << " fm/c.";
@@ -118,7 +118,7 @@ void Init::InitArena(SCGrid &arena_prev, SCGrid &arena_current,
         DATA.tau0 = std::max(DATA.tau0, tau_overlap) - DATA.delta_tau;
         music_message << "tau0 = " << DATA.tau0 << " fm/c.";
         music_message.flush("info");
-    } else if (DATA.Initial_profile == 14) {
+    } else if (DATA.Initial_profile == 14 || DATA.Initial_profile == 141) {
         double tau_overlap = 2.*7./(sinh(DATA.beam_rapidity));
         DATA.tau0 = std::max(DATA.tau0, tau_overlap);
         music_message << "tau0 = " << DATA.tau0 << " fm/c.";
@@ -230,7 +230,7 @@ void Init::InitTJb(SCGrid &arena_prev, SCGrid &arena_current) {
         for (int ieta = 0; ieta < arena_current.nEta(); ieta++) {
             initial_IPGlasma_XY_with_pi(ieta, arena_prev, arena_current);
         }
-    } else if (DATA.Initial_profile == 11 || DATA.Initial_profile == 111) {
+    } else if (DATA.Initial_profile == 11 || DATA.Initial_profile == 110 || DATA.Initial_profile == 111) {
         // read in the transverse profile from file with finite rho_B
         // the initial entropy and net baryon density profile are
         // constructed by nuclear thickness function TA and TB.
@@ -249,7 +249,7 @@ void Init::InitTJb(SCGrid &arena_prev, SCGrid &arena_current) {
         for (int ieta = 0; ieta < arena_current.nEta(); ieta++) {
             initial_with_zero_XY(ieta, arena_prev, arena_current);
         }
-    } else if (DATA.Initial_profile == 14) {
+    } else if (DATA.Initial_profile == 14 || DATA.Initial_profile == 141) {
         music_message.info(" ----- information on initial distribution -----");
         music_message << "file name used: " << DATA.initName_TA << " and "
                       << DATA.initName_TB;
@@ -769,7 +769,7 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                 
                 double y_CM = 0.0;
                 
-                if (DATA.Initial_profile == 111 || DATA.Initial_profile == 14) {
+                if (DATA.Initial_profile == 110 || DATA.Initial_profile == 111 || DATA.Initial_profile == 14) {
                     y_CM = atanh(
                         (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
                         /(temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]
@@ -826,6 +826,29 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                           + (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
                             *norm_odd*eta/DATA.beam_rapidity)*eta_envelop)
                         /Util::hbarc);
+                    
+                } else if (DATA.Initial_profile == 110) {
+                    const double eta_0 = DATA.eta_flat/2.;
+                    const double sigma_eta = DATA.eta_fall_off;
+                    const double E_norm = energy_eta_profile_normalisation(
+                                                y_CM, eta_0, sigma_eta);
+                    const double Pz_norm = Pz_eta_profile_normalisation(
+                                                eta_0, sigma_eta);
+                    const double norm_even = (
+                            1./(DATA.tau0*E_norm)
+                            *Util::m_N*cosh(DATA.beam_rapidity));
+                    const double norm_odd = (
+                            DATA.beam_rapidity/(DATA.tau0*Pz_norm)
+                            *Util::m_N*sinh(DATA.beam_rapidity));
+                    double eta_envelop = eta_profile_plateau(
+                                                    eta - y_CM, eta_0, sigma_eta);
+                    epsilon = DATA.eNorm * (
+                        ((  (temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy])
+                           *norm_even
+                          + (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
+                            *norm_odd*eta/DATA.beam_rapidity)*eta_envelop)
+                        /Util::hbarc);
+                    
                     
                 } else if (DATA.Initial_profile == 111) {
                     // local energy density [1/fm]
@@ -1274,7 +1297,7 @@ void Init::output_initial_density_profiles(SCGrid &arena) {
     // for checking purpose
     music_message.info("output initial density profiles into a file... ");
     std::ofstream of("check_initial_density_profiles.dat");
-    of << "# x(fm)  y(fm)  eta utau ueta(1/fm) ed(GeV/fm^3) T(GeV)";
+    of << "# x(fm)  y(fm)  eta utau ueta(1/fm) ed(GeV/fm^3) p(GeV/fm^3)";
     if (DATA.turn_on_rhob == 1)
         of << "  rhob(1/fm^3) mu(GeV)";
     of << std::endl;
@@ -1288,14 +1311,14 @@ void Init::output_initial_density_profiles(SCGrid &arena) {
                 double rhob_local = arena(ix,iy,ieta).rhob;
                 double utau         = arena(ix, iy, ieta).u[0];
                 double ueta         = arena(ix, iy, ieta).u[3];
-                double T_local      = eos.get_temperature(e_local, rhob_local);
+                double p_local      = eos.get_pressure(e_local, rhob_local);
                 double muB_local    = eos.get_muB(e_local, rhob_local);
 
                 of << std::scientific << std::setw(18) << std::setprecision(8)
                    << x_local << "   " << y_local << "   "
                    << eta_local << "   " << utau << "   " 
                    << ueta << "   " << e_local*hbarc
-                   << "   " << T_local*hbarc;
+                   << "   " << p_local*hbarc;
                 if (DATA.turn_on_rhob == 1) {
                     of << "   " << rhob_local
                     << "   " << muB_local*hbarc;
