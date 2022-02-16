@@ -831,15 +831,15 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                     const double eta_0 = DATA.eta_flat/2.;
                     const double sigma_eta = DATA.eta_fall_off;
                     const double E_norm = energy_eta_profile_normalisation(
-                                                y_CM, eta_0, sigma_eta);
+                                                0.0, eta_0, sigma_eta);
                     const double Pz_norm = Pz_eta_profile_normalisation(
                                                 eta_0, sigma_eta);
                     const double norm_even = (
                             1./(DATA.tau0*E_norm)
-                            *Util::m_N*cosh(DATA.beam_rapidity));
+                            *Util::m_N*cosh(DATA.beam_rapidity)/cosh(y_CM));
                     const double norm_odd = (
                             DATA.beam_rapidity/(DATA.tau0*Pz_norm)
-                            *Util::m_N*sinh(DATA.beam_rapidity));
+                            *Util::m_N*sinh(DATA.beam_rapidity)/sinh(y_CM));
                     double eta_envelop = eta_profile_plateau(
                                                     eta - y_CM, eta_0, sigma_eta);
                     epsilon = DATA.eNorm * (
@@ -848,7 +848,6 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                           + (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
                             *norm_odd*eta/DATA.beam_rapidity)*eta_envelop)
                         /Util::hbarc);
-                    
                     
                 } else if (DATA.Initial_profile == 111) {
                     // local energy density [1/fm]
