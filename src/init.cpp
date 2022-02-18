@@ -745,6 +745,10 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                   << "N_B = " << N_B;
     music_message.flush("info");
 
+    music_message << "total energy adjusted = " << total_energy * DATA.eNorm << " GeV, "
+                  << "total baryon adjusted = " << N_B * DATA.rhobNorm;
+    music_message.flush("info");
+
     double T_tau_t = 0.0;
     #pragma omp parallel for reduction(+: T_tau_t)
     for (int ieta = 0; ieta < neta; ieta++) {
@@ -769,7 +773,7 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                 
                 double y_CM = 0.0;
                 
-                if (DATA.Initial_profile == 110 || DATA.Initial_profile == 111 || DATA.Initial_profile == 14) {
+                if (DATA.Initial_profile == 110 || DATA.Initial_profile == 111 || DATA.Initial_profile == 14 || DATA.Initial_profile == 141) {
                     y_CM = atanh(
                         (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
                         /(temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]
@@ -778,26 +782,55 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                 }
 
                 if (DATA.turn_on_rhob == 1) {
-                    if (DATA.initial_rhob_shift == 1){
-                        eta_rhob_shift_left  = eta_rhob_left_factor(eta-y_CM);
-                        eta_rhob_shift_right = eta_rhob_right_factor(eta-y_CM);
-                        if (DATA.symmetrize_rhob_profile == 0){
-                            rhob_R = temp_profile_TA[ix][iy]*eta_rhob_shift_right;
-                            rhob_L = temp_profile_TB[ix][iy]*eta_rhob_shift_left;
+                    if (DATA.initial_baryon_profile == 1) { // left and right
+                        if (DATA.initial_rhob_shift == 1){
+                            eta_rhob_shift_left  = eta_rhob_left_factor(eta-y_CM);
+                            eta_rhob_shift_right = eta_rhob_right_factor(eta-y_CM);
+                            if (DATA.symmetrize_rhob_profile == 0){
+                                rhob_R = temp_profile_TA[ix][iy]*eta_rhob_shift_right;
+                                rhob_L = temp_profile_TB[ix][iy]*eta_rhob_shift_left;
+                            } else {
+                                rhob_R = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_shift_right;
+                                rhob_L = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_shift_left;
+                            }
                         } else {
-                            rhob_R = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_shift_right;
-                            rhob_L = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_shift_left;
+                            if (DATA.symmetrize_rhob_profile == 0){
+                                rhob_R = temp_profile_TA[ix][iy] * eta_rhob_right;
+                                rhob_L = temp_profile_TB[ix][iy] * eta_rhob_left;
+                            } else {
+                                rhob_R = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_right;
+                                rhob_L = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_left;
+                            }
                         }
-                    } else {
-                        if (DATA.symmetrize_rhob_profile == 0){
-                            rhob_R = temp_profile_TA[ix][iy] * eta_rhob_right;
-                            rhob_L = temp_profile_TB[ix][iy] * eta_rhob_left;
+                        rhob = DATA.rhobNorm * (rhob_R + rhob_L);
+                    } else if (DATA.initial_baryon_profile == 2) { // profile 141: left, right and central
+                        const double eta_rhob_0 = DATA.eta_rhob_flat/2.;
+                        const double sigma_rhob_eta = DATA.eta_rhob_fall_off;
+                        const double rhob_C_norm = sigma_rhob_eta * sqrt(2*M_PI) + 2 * eta_rhob_0;
+                        const double rhob_frac = DATA.central_baryon_frac;
+                        double net_rhob_C = rhob_frac * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]);
+                        double eta_rhob_envelop = 0.0;
+                        double rhob_C = 0.0;
+
+                        if (DATA.initial_rhob_shift == 1){
+                            eta_rhob_envelop = eta_profile_plateau(eta-y_CM, eta_rhob_0, sigma_rhob_eta);
+                            rhob_C = net_rhob_C*(1/(rhob_C_norm*DATA.tau0))*eta_rhob_envelop;
+
+                            eta_rhob_shift_left  = eta_rhob_left_factor(eta-y_CM);
+                            eta_rhob_shift_right = eta_rhob_right_factor(eta-y_CM);
+
+                            rhob_R = (1-rhob_frac) * temp_profile_TA[ix][iy] * eta_rhob_shift_right;
+                            rhob_L = (1-rhob_frac) * temp_profile_TB[ix][iy] * eta_rhob_shift_left;
                         } else {
-                            rhob_R = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_right;
-                            rhob_L = 0.5 * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]) * eta_rhob_left;
+                            eta_rhob_envelop = eta_profile_plateau(eta, eta_rhob_0, sigma_rhob_eta);
+                            rhob_C = net_rhob_C*(1/(rhob_C_norm*DATA.tau0))*eta_rhob_envelop;
+
+                            rhob_R = (1-rhob_frac) * temp_profile_TA[ix][iy] * eta_rhob_right;
+                            rhob_L = (1-rhob_frac) * temp_profile_TB[ix][iy] * eta_rhob_left;
                         }
+                        rhob = DATA.rhobNorm * (rhob_R + rhob_L + rhob_C);
+
                     }
-                    rhob = DATA.rhobNorm * (rhob_R + rhob_L);
                 } else {
                     rhob = 0.0;
                 }
@@ -805,7 +838,7 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                 // energy profile
                 double epsilon = 0.0;
                 
-                if (DATA.Initial_profile == 11) {
+                if (DATA.Initial_profile == 11) { // Bozek no shift
                     const double eta_0 = DATA.eta_flat/2.;
                     const double sigma_eta = DATA.eta_fall_off;
                     const double E_norm = energy_eta_profile_normalisation(
@@ -827,7 +860,7 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                             *norm_odd*eta/DATA.beam_rapidity)*eta_envelop)
                         /Util::hbarc);
                     
-                } else if (DATA.Initial_profile == 110) {
+                } else if (DATA.Initial_profile == 110) { // Bozek shift by y_CM
                     const double eta_0 = DATA.eta_flat/2.;
                     const double sigma_eta = DATA.eta_fall_off;
                     const double E_norm = energy_eta_profile_normalisation(
@@ -836,10 +869,10 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                                                 eta_0, sigma_eta);
                     const double norm_even = (
                             1./(DATA.tau0*E_norm)
-                            *Util::m_N*cosh(DATA.beam_rapidity)/cosh(y_CM));
+                            *Util::m_N*cosh(DATA.beam_rapidity));
                     const double norm_odd = (
                             DATA.beam_rapidity/(DATA.tau0*Pz_norm)
-                            *Util::m_N*sinh(DATA.beam_rapidity)/sinh(y_CM));
+                            *Util::m_N*sinh(DATA.beam_rapidity));
                     double eta_envelop = eta_profile_plateau(
                                                     eta - y_CM, eta_0, sigma_eta);
                     epsilon = DATA.eNorm * (
@@ -849,7 +882,7 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                             *norm_odd*eta/DATA.beam_rapidity)*eta_envelop)
                         /Util::hbarc);
                     
-                } else if (DATA.Initial_profile == 111) {
+                } else if (DATA.Initial_profile == 111) { // Shen and Alzhrani
                     // local energy density [1/fm]
                     double E_lrf = (
                         (temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy])
@@ -861,9 +894,9 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                     double E_norm = (
                         DATA.tau0*energy_eta_profile_normalisation(
                                     y_CM, eta0, DATA.eta_fall_off));
-                    epsilon = E_lrf*eta_envelop/E_norm;
+                    epsilon = DATA.eNorm * E_lrf*eta_envelop/E_norm;
                     
-                } else if (DATA.Initial_profile == 14) {
+                } else if (DATA.Initial_profile == 14) { // three fireballs
                     // local total energy density [1/fm]
                     double E_lrf = (
                         (temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy])
@@ -894,7 +927,25 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                     epsilon = epsilon_L + (E_lrf-E_LR)*eta_envelop/E_norm + epsilon_R;
 
                     epsilon = DATA.eNorm * epsilon;
+
+                } else if (DATA.Initial_profile == 141) { // net diffusion paper
+                    double eta_envelop_left  = 0.;
+                    double eta_envelop_right = 0.;
+                    if(DATA.initial_energy_shift == 0){
+                        eta_envelop_left  = eta_profile_left_factor(eta);
+                        eta_envelop_right = eta_profile_right_factor(eta);
+                    } else {
+                        eta_envelop_left  = eta_profile_left_factor(eta - y_CM);
+                        eta_envelop_right = eta_profile_right_factor(eta - y_CM);
+                    }
+                    
+                    double local_sd = (
+                            (temp_profile_TA[ix][iy]*eta_envelop_right
+                            + temp_profile_TB[ix][iy]*eta_envelop_left)
+                            *DATA.sFactor);         // 1/fm^3
+                    epsilon = eos.get_s2e(local_sd, rhob);
                 }
+
                 epsilon = std::max(Util::small_eps, epsilon);
                 
                 // initialization

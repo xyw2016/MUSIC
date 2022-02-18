@@ -40,6 +40,8 @@ typedef struct init_data {
     double beam_rapidity;
 
     int initial_rhob_shift;
+    int initial_energy_shift;
+    int initial_baryon_profile;
     int symmetrize_rhob_profile;
     int initial_eta_rhob_profile;
     // envelope function parameter for energy density in eta_s direction
@@ -51,8 +53,11 @@ typedef struct init_data {
     double eta_rhob_plateau_height;  //!< central plateau height profile == 2
     double eta_rhob_width_1;         //!< outside tail Gaussian width profile == 2
     double eta_rhob_width_2;         //!< inside Gaussian width profile == 2
+    double eta_rhob_fall_off;
+    double eta_rhob_flat;
     double eta_rhob_asym;
     double yL_frac;
+    double central_baryon_frac;
 
     int Initial_profile;    //! type of initial condition
     int initializeEntropy;  //! flag to initial entropy or energy density

@@ -30,6 +30,12 @@ InitData read_in_parameters(std::string input_file) {
     parameter_list.Initial_profile = tempInitial_profile;
 
     // Initial_profile:
+    int tempInitial_baryon_profile = 1;
+    tempinput = Util::StringFind4(input_file, "Initial_baryon_profile");
+    if (tempinput != "empty") istringstream(tempinput) >> tempInitial_baryon_profile;
+    parameter_list.initial_baryon_profile = tempInitial_baryon_profile;
+
+    // Initial_profile:
     int temp_string_dump_mode = 1;
     tempinput = Util::StringFind4(input_file, "string_dump_mode");
     if (tempinput != "empty")
@@ -81,6 +87,12 @@ InitData read_in_parameters(std::string input_file) {
     if (tempinput != "empty")
         istringstream(tempinput) >> temp_rhob_shift_flag;
     parameter_list.initial_rhob_shift = temp_rhob_shift_flag;
+
+    int temp_energy_shift_flag = 1;
+    tempinput = Util::StringFind4(input_file, "initial_energy_shift");
+    if (tempinput != "empty")
+        istringstream(tempinput) >> temp_energy_shift_flag;
+    parameter_list.initial_energy_shift = temp_energy_shift_flag;
 
     int temp_symmetrize_rhob_flag = 1;
     tempinput = Util::StringFind4(input_file, "symmetrize_rhob_profile");
@@ -438,12 +450,31 @@ InitData read_in_parameters(std::string input_file) {
         istringstream(tempinput) >> tempeta_flat;
     parameter_list.eta_flat = tempeta_flat;
 
+    double tempeta_rhob_fall_off  = 0.4;
+    tempinput = Util::StringFind4(input_file, "eta_rhob_fall_off");
+    if (tempinput != "empty")
+        istringstream(tempinput) >> tempeta_rhob_fall_off ;
+    parameter_list.eta_rhob_fall_off  = tempeta_rhob_fall_off;
+
+    double tempeta_rhob_flat = 20.0;
+    tempinput = Util::StringFind4(input_file, "eta_rhob_plateau_size");
+    if (tempinput != "empty")
+        istringstream(tempinput) >> tempeta_rhob_flat;
+    parameter_list.eta_rhob_flat = tempeta_rhob_flat;
+
     // yL_frac: the fraction of Y_CM in the longitudinal velocity
     double temp_yL_frac = 0.0;  // default is 0: Bjorken flow
     tempinput = Util::StringFind4(input_file, "yL_frac");
     if (tempinput != "empty")
         istringstream(tempinput) >> temp_yL_frac;
     parameter_list.yL_frac = temp_yL_frac;
+
+    // fraction of total baryon carried by the center
+    double temp_cen_rhob_frac = 0.0;
+    tempinput = Util::StringFind4(input_file, "central_baryon_frac");
+    if (tempinput != "empty")
+        istringstream(tempinput) >> temp_cen_rhob_frac;
+    parameter_list.central_baryon_frac = temp_cen_rhob_frac;
 
     // s_factor:  for use with IP-Glasma initial conditions
     double tempsFactor   = 1.0;
