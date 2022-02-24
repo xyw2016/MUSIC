@@ -745,8 +745,11 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                   << "N_B = " << N_B;
     music_message.flush("info");
 
-    music_message << "total energy adjusted = " << total_energy * DATA.eNorm << " GeV, "
-                  << "total baryon adjusted = " << N_B * DATA.rhobNorm;
+    if (DATA.Initial_profile == 110 || DATA.Initial_profile == 111 || DATA.Initial_profile == 14 || DATA.Initial_profile == 141) {
+        music_message << "total energy adjusted = " << total_energy * DATA.eNorm << " GeV";
+        music_message.flush("info");
+    }
+    music_message << "total baryon adjusted = " << N_B * DATA.rhobNorm;
     music_message.flush("info");
 
     double T_tau_t = 0.0;
@@ -773,13 +776,10 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                 
                 double y_CM = 0.0;
                 
-                if (DATA.Initial_profile == 110 || DATA.Initial_profile == 111 || DATA.Initial_profile == 14 || DATA.Initial_profile == 141) {
-                    y_CM = atanh(
-                        (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
-                        /(temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]
-                          + Util::small_eps)
-                        *tanh(DATA.beam_rapidity));
-                }
+                double TAB_fac = (temp_profile_TA[ix][iy] - temp_profile_TB[ix][iy])
+                                /(temp_profile_TA[ix][iy] + temp_profile_TB[ix][iy]
+                                + Util::small_eps);
+                y_CM = atanh(TAB_fac * tanh(DATA.beam_rapidity));
 
                 if (DATA.turn_on_rhob == 1) {
                     if (DATA.initial_baryon_profile == 1) { // left and right
@@ -803,7 +803,7 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                             }
                         }
                         rhob = DATA.rhobNorm * (rhob_R + rhob_L);
-                    } else if (DATA.initial_baryon_profile == 2) { // profile 141: left, right and central
+                    } else if (DATA.initial_baryon_profile == 2) { // left, right and central
                         const double eta_rhob_0 = DATA.eta_rhob_flat/2.;
                         const double sigma_rhob_eta = DATA.eta_rhob_fall_off;
                         const double rhob_C_norm = sigma_rhob_eta * sqrt(2*M_PI) + 2 * eta_rhob_0;
@@ -812,7 +812,23 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                         double eta_rhob_envelop = 0.0;
                         double rhob_C = 0.0;
 
-                        if (DATA.initial_rhob_shift == 1){
+                        if (DATA.initial_rhob_shift == 0){
+                            eta_rhob_envelop = eta_profile_plateau(eta, eta_rhob_0, sigma_rhob_eta);
+                            rhob_C = net_rhob_C*(1/(rhob_C_norm*DATA.tau0))*eta_rhob_envelop;
+
+                            rhob_R = (1-rhob_frac) * temp_profile_TA[ix][iy] * eta_rhob_right;
+                            rhob_L = (1-rhob_frac) * temp_profile_TB[ix][iy] * eta_rhob_left;
+                            
+                        } else if (DATA.initial_rhob_shift == 1){
+                            eta_rhob_envelop = eta_profile_plateau(eta, eta_rhob_0, sigma_rhob_eta);
+                            rhob_C = net_rhob_C*(1/(rhob_C_norm*DATA.tau0))*eta_rhob_envelop;
+
+                            eta_rhob_shift_left  = eta_rhob_left_factor(eta-y_CM);
+                            eta_rhob_shift_right = eta_rhob_right_factor(eta-y_CM);
+
+                            rhob_R = (1-rhob_frac) * temp_profile_TA[ix][iy] * eta_rhob_shift_right;
+                            rhob_L = (1-rhob_frac) * temp_profile_TB[ix][iy] * eta_rhob_shift_left;
+                        } else if (DATA.initial_rhob_shift == 2){
                             eta_rhob_envelop = eta_profile_plateau(eta-y_CM, eta_rhob_0, sigma_rhob_eta);
                             rhob_C = net_rhob_C*(1/(rhob_C_norm*DATA.tau0))*eta_rhob_envelop;
 
@@ -821,15 +837,47 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
 
                             rhob_R = (1-rhob_frac) * temp_profile_TA[ix][iy] * eta_rhob_shift_right;
                             rhob_L = (1-rhob_frac) * temp_profile_TB[ix][iy] * eta_rhob_shift_left;
-                        } else {
+                        }
+                        rhob = DATA.rhobNorm * (rhob_R + rhob_L + rhob_C);
+                    } else if (DATA.initial_baryon_profile == 3) { // left, right and central
+                        const double eta_rhob_0 = DATA.eta_rhob_flat/2.;
+                        const double sigma_rhob_eta = DATA.eta_rhob_fall_off;
+                        const double rhob_C_norm = sigma_rhob_eta * sqrt(2*M_PI) + 2 * eta_rhob_0;
+                        const double rhob_frac = DATA.central_baryon_frac;
+
+                        double symmetry_frac = 1/cosh(TAB_fac); // factor used to adjust the central plateau's contribution, approaching 1 when TA=TB
+
+                        double net_rhob_C = symmetry_frac * rhob_frac * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]);
+                        double eta_rhob_envelop = 0.0;
+                        double rhob_C = 0.0;
+
+                        if (DATA.initial_rhob_shift == 0){
                             eta_rhob_envelop = eta_profile_plateau(eta, eta_rhob_0, sigma_rhob_eta);
                             rhob_C = net_rhob_C*(1/(rhob_C_norm*DATA.tau0))*eta_rhob_envelop;
 
                             rhob_R = (1-rhob_frac) * temp_profile_TA[ix][iy] * eta_rhob_right;
                             rhob_L = (1-rhob_frac) * temp_profile_TB[ix][iy] * eta_rhob_left;
+                            
+                        } else if (DATA.initial_rhob_shift == 1){
+                            eta_rhob_envelop = eta_profile_plateau(eta, eta_rhob_0, sigma_rhob_eta);
+                            rhob_C = net_rhob_C*(1/(rhob_C_norm*DATA.tau0))*eta_rhob_envelop;
+
+                            eta_rhob_shift_left  = eta_rhob_left_factor(eta-y_CM);
+                            eta_rhob_shift_right = eta_rhob_right_factor(eta-y_CM);
+
+                            rhob_R = (1-rhob_frac) * temp_profile_TA[ix][iy] * eta_rhob_shift_right;
+                            rhob_L = (1-rhob_frac) * temp_profile_TB[ix][iy] * eta_rhob_shift_left;
+                        } else if (DATA.initial_rhob_shift == 2){
+                            eta_rhob_envelop = eta_profile_plateau(eta-y_CM, eta_rhob_0, sigma_rhob_eta);
+                            rhob_C = net_rhob_C*(1/(rhob_C_norm*DATA.tau0))*eta_rhob_envelop;
+
+                            eta_rhob_shift_left  = eta_rhob_left_factor(eta-y_CM);
+                            eta_rhob_shift_right = eta_rhob_right_factor(eta-y_CM);
+
+                            rhob_R = (1-rhob_frac) * temp_profile_TA[ix][iy] * eta_rhob_shift_right;
+                            rhob_L = (1-rhob_frac) * temp_profile_TB[ix][iy] * eta_rhob_shift_left;
                         }
                         rhob = DATA.rhobNorm * (rhob_R + rhob_L + rhob_C);
-
                     }
                 } else {
                     rhob = 0.0;
@@ -928,7 +976,7 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
 
                     epsilon = DATA.eNorm * epsilon;
 
-                } else if (DATA.Initial_profile == 141) { // net diffusion paper
+                } else if (DATA.Initial_profile == 141) { // G. Denical et al, net diffusion paper
                     double eta_envelop_left  = 0.;
                     double eta_envelop_right = 0.;
                     if(DATA.initial_energy_shift == 0){
