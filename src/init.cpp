@@ -1057,6 +1057,7 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                 } else if (DATA.Initial_profile == 141) { // G. Denical et al, net diffusion paper
                     double eta_envelop_left  = 0.;
                     double eta_envelop_right = 0.;
+                    
                     if(DATA.initial_energy_shift == 0){
                         eta_envelop_left  = eta_profile_left_factor(eta);
                         eta_envelop_right = eta_profile_right_factor(eta);
@@ -1065,11 +1066,19 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                         eta_envelop_right = eta_profile_right_factor(eta - yL);
                     }
                     
-                    double local_sd = (
+                    if (DATA.initializeEntropy == 1){
+                        double local_sd = (
                             (temp_profile_TA[ix][iy]*eta_envelop_right
                             + temp_profile_TB[ix][iy]*eta_envelop_left)
                             *DATA.sFactor);         // 1/fm^3
-                    epsilon = eos.get_s2e(local_sd, rhob);
+                        epsilon = eos.get_s2e(local_sd, rhob);
+                    } else {
+                        epsilon = (
+                            (temp_profile_TA[ix][iy]*eta_envelop_right
+                            + temp_profile_TB[ix][iy]*eta_envelop_left)
+                            * DATA.eNorm);
+                    }
+                    
                 }
 
                 epsilon = std::max(Util::small_eps, epsilon);
