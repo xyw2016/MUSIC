@@ -57,6 +57,8 @@ typedef struct init_data {
     double eta_rhob_flat;
     double eta_rhob_asym;
     double yL_frac;
+    double yLb_frac;
+    double yb_frac;
     double central_baryon_frac;
 
     int Initial_profile;    //! type of initial condition

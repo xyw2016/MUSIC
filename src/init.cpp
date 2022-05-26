@@ -775,7 +775,9 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                 y_CM = atanh(TAB_fac * tanh(DATA.beam_rapidity));
 
                 double yL_frac_ = DATA.yL_frac;
+                double yLb_frac_ = DATA.yLb_frac;
                 double yL = yL_frac_ * y_CM;
+                double yLb = yLb_frac_ * y_CM;
 
                 // baryon profile
                 double rhob = 0.0;
@@ -932,24 +934,24 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
                             double rhob_central_plateau = (1/(rhob_C_norm*DATA.tau0)) * eta_rhob_envelop;
                             rhob_C = net_rhob_C*rhob_central_plateau;
                             // left and right
-                            eta_rhob_shift_left  = eta_rhob_left_factor(eta-yL);
-                            eta_rhob_shift_right = eta_rhob_right_factor(eta-yL);
+                            eta_rhob_shift_left  = eta_rhob_left_factor(eta-yLb);
+                            eta_rhob_shift_right = eta_rhob_right_factor(eta-yLb);
                             rhob_R = temp_profile_TA[ix][iy] * eta_rhob_shift_right;
                             rhob_L = temp_profile_TB[ix][iy] * eta_rhob_shift_left;
                         } else if (DATA.initial_rhob_shift == 2){ // only plateau shifted by yL
-                            double eta_rhob_envelop = eta_profile_plateau(eta-yL, eta_rhob_0, sigma_rhob_eta);
+                            double eta_rhob_envelop = eta_profile_plateau(eta-yLb, eta_rhob_0, sigma_rhob_eta);
                             double rhob_central_plateau = (1/(rhob_C_norm*DATA.tau0)) * eta_rhob_envelop;
                             rhob_C = net_rhob_C*rhob_central_plateau;
                             // left and right
                             rhob_R = temp_profile_TA[ix][iy] * eta_rhob_right;
                             rhob_L = temp_profile_TB[ix][iy] * eta_rhob_left;
                         } else if (DATA.initial_rhob_shift == 3){ // both plateau and peaks shifted by yL
-                            double eta_rhob_envelop = eta_profile_plateau(eta-yL, eta_rhob_0, sigma_rhob_eta);
+                            double eta_rhob_envelop = eta_profile_plateau(eta-yLb, eta_rhob_0, sigma_rhob_eta);
                             double rhob_central_plateau = (1/(rhob_C_norm*DATA.tau0)) * eta_rhob_envelop;
                             rhob_C = net_rhob_C*rhob_central_plateau;
                             // left and right
-                            eta_rhob_shift_left  = eta_rhob_left_factor(eta-yL);
-                            eta_rhob_shift_right = eta_rhob_right_factor(eta-yL);
+                            eta_rhob_shift_left  = eta_rhob_left_factor(eta-yLb);
+                            eta_rhob_shift_right = eta_rhob_right_factor(eta-yLb);
                             rhob_R = temp_profile_TA[ix][iy] * eta_rhob_shift_right;
                             rhob_L = temp_profile_TB[ix][iy] * eta_rhob_shift_left;
                         }
@@ -1386,10 +1388,11 @@ double Init::energy_eta_LR_normalization(
 
 double Init::eta_profile_left_factor(const double eta) const {
     // this function return the eta envelope for projectile
+    double eta_max = DATA.yb_frac * DATA.beam_rapidity;
     double res = eta_profile_plateau(
                     eta, DATA.eta_flat/2.0, DATA.eta_fall_off);
-    if (std::abs(eta) < DATA.beam_rapidity) {
-        res = (1. - eta/DATA.beam_rapidity)*res;
+    if (std::abs(eta) < eta_max) {
+        res = (1. - eta/eta_max)*res;
     } else {
         res = 0.0;
     }
@@ -1399,10 +1402,11 @@ double Init::eta_profile_left_factor(const double eta) const {
 
 double Init::eta_profile_right_factor(const double eta) const {
     // this function return the eta envelope for target
+    double eta_max = DATA.yb_frac * DATA.beam_rapidity;
     double res = eta_profile_plateau(
                     eta, DATA.eta_flat/2.0, DATA.eta_fall_off);
-    if (std::abs(eta) < DATA.beam_rapidity) {
-        res = (1. + eta/DATA.beam_rapidity)*res;
+    if (std::abs(eta) < eta_max) {
+        res = (1. + eta/eta_max)*res;
     } else {
         res = 0.0;
     }

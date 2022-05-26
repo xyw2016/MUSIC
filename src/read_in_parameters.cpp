@@ -469,6 +469,19 @@ InitData read_in_parameters(std::string input_file) {
         istringstream(tempinput) >> temp_yL_frac;
     parameter_list.yL_frac = temp_yL_frac;
 
+    double temp_yLb_frac = 0.0;  // default is 0: Bjorken flow
+    tempinput = Util::StringFind4(input_file, "yLb_frac");
+    if (tempinput != "empty")
+        istringstream(tempinput) >> temp_yLb_frac;
+    parameter_list.yLb_frac = temp_yLb_frac;
+
+    // yb_frac: the fraction of beam rapidity
+    double temp_yb_frac = 0.0;  // default is 0
+    tempinput = Util::StringFind4(input_file, "yb_frac");
+    if (tempinput != "empty")
+        istringstream(tempinput) >> temp_yb_frac;
+    parameter_list.yb_frac = temp_yb_frac;
+
     // fraction of total baryon carried by the center
     double temp_cen_rhob_frac = 0.0;
     tempinput = Util::StringFind4(input_file, "central_baryon_frac");
