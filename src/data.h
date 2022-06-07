@@ -44,6 +44,7 @@ typedef struct init_data {
     int initial_baryon_profile;
     int symmetrize_rhob_profile;
     int initial_eta_rhob_profile;
+    int include_symmetry_frac;
     // envelope function parameter for energy density in eta_s direction
     double eta_fall_off;
     double eta_flat;

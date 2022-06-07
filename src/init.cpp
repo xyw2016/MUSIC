@@ -913,7 +913,15 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
 
                         // central baryon number
                         const double rhob_frac = DATA.central_baryon_frac;
-                        double symmetry_frac = 1/cosh(TAB_fac); // factor used to adjust the central plateau's contribution, approaching 1 when TA=TB
+
+                        double symmetry_frac = 1.0;
+                        double coshyL = cosh(TAB_fac);
+                        if (DATA.include_symmetry_frac == 1){
+                            symmetry_frac = 1/coshyL; // factor used to adjust the central plateau's contribution, approaching 1 when TA=TB
+                        } else if (DATA.include_symmetry_frac == 2){
+                            symmetry_frac = 1/(coshyL*coshyL); // factor used to adjust the central plateau's contribution, approaching 1 when TA=TB
+                        } 
+
                         double net_rhob_C = symmetry_frac * rhob_frac * (temp_profile_TA[ix][iy]+temp_profile_TB[ix][iy]);
 
                         // rhob central plateau

@@ -489,6 +489,13 @@ InitData read_in_parameters(std::string input_file) {
         istringstream(tempinput) >> temp_cen_rhob_frac;
     parameter_list.central_baryon_frac = temp_cen_rhob_frac;
 
+    // whether include symmetry_frac
+    int temp_symmetry_frac = 1;
+    tempinput = Util::StringFind4(input_file, "include_symmetry_frac");
+    if (tempinput != "empty")
+        istringstream(tempinput) >> temp_symmetry_frac;
+    parameter_list.include_symmetry_frac = temp_symmetry_frac;
+
     // s_factor:  for use with IP-Glasma initial conditions
     double tempsFactor   = 1.0;
     tempinput = Util::StringFind4(input_file, "s_factor");
