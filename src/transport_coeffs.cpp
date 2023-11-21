@@ -86,8 +86,7 @@ double TransportCoeffs::get_zeta_over_s(double T) const {
         zeta_over_s = get_temperature_dependent_zeta_over_s_sims(T);
     } else if (DATA.T_dependent_bulk_to_s == 1) {
         zeta_over_s = get_temperature_dependent_zeta_over_s_default(T);
-    }
-    } else if (DATA.T_dependent_bulk_to_s == 7) {
+    }else if (DATA.T_dependent_bulk_to_s == 7) {
         zeta_over_s = get_temperature_dependent_zeta_over_s_bigbroadP(T);
     } else if (DATA.T_dependent_bulk_to_s == 8) {
         // latest param. for IPGlasma + MUSIC + UrQMD
