@@ -87,6 +87,35 @@ double TransportCoeffs::get_zeta_over_s(double T) const {
     } else if (DATA.T_dependent_bulk_to_s == 1) {
         zeta_over_s = get_temperature_dependent_zeta_over_s_default(T);
     }
+    } else if (DATA.T_dependent_bulk_to_s == 7) {
+        zeta_over_s = get_temperature_dependent_zeta_over_s_bigbroadP(T);
+    } else if (DATA.T_dependent_bulk_to_s == 8) {
+        // latest param. for IPGlasma + MUSIC + UrQMD
+        // Phys.Rev.C 102 (2020) 4, 044905, e-Print: 2005.14682 [nucl-th]
+        const double peak_norm = 0.13;
+        const double B_width1 = 0.01;
+        const double B_width2 = 0.12;
+        const double Tpeak = 0.160;
+        zeta_over_s = get_temperature_dependent_zeta_over_s_AsymGaussian(
+                            T, peak_norm, B_width1, B_width2, Tpeak);
+    } else if (DATA.T_dependent_bulk_to_s == 9) {
+        // latest param. for IPGlasma + KoMPoST + MUSIC + UrQMD
+        // Phys.Rev.C 105 (2022) 1, 014909, e-Print: 2106.11216 [nucl-th]
+        const double peak_norm = 0.175;
+        const double B_width1 = 0.01;
+        const double B_width2 = 0.12;
+        const double Tpeak = 0.160;
+        zeta_over_s = get_temperature_dependent_zeta_over_s_AsymGaussian(
+                            T, peak_norm, B_width1, B_width2, Tpeak);
+    } else if (DATA.T_dependent_bulk_to_s == 10) {
+        // param. for 3D-Glauber + MUSIC + UrQMD
+        const double peak_norm = 0.05;
+        const double B_width1 = 0.015;      // GeV
+        const double B_width2 = 0.100;      // GeV
+        const double Tpeak = 0.170;         // GeV
+        zeta_over_s = get_temperature_dependent_zeta_over_s_AsymGaussian(
+                            T, peak_norm, B_width1, B_width2, Tpeak);
+    }
     zeta_over_s = std::max(0., zeta_over_s);
     return zeta_over_s;
 }
@@ -186,3 +215,33 @@ double TransportCoeffs::get_temperature_dependent_zeta_over_s_default(
 }
 
 
+double TransportCoeffs::get_temperature_dependent_zeta_over_s_bigbroadP(
+                                                const double T_in_fm) const {
+    // used in arXiv: 1901.04378 and 1908.06212
+    const double T_in_GeV = T_in_fm*hbarc;
+    const double B_norm = 0.24;
+    const double B_width = 1.5;
+    const double Tpeak = 0.165;
+    const double Ttilde = (T_in_GeV/Tpeak - 1.)/B_width;
+    double bulk = B_norm/(Ttilde*Ttilde + 1.);
+    if (T_in_GeV < Tpeak) {
+        const double Tdiff = (T_in_GeV - Tpeak)/0.01;
+        bulk = B_norm*exp(-Tdiff*Tdiff);
+    }
+    return(bulk);
+}
+
+
+double TransportCoeffs::get_temperature_dependent_zeta_over_s_AsymGaussian(
+        const double T_in_fm, const double B_norm, const double B_width1,
+        const double B_width2, const double Tpeak) const {
+    const double T_in_GeV = T_in_fm*hbarc;
+    double Tdiff = T_in_GeV - Tpeak;        // GeV
+    if (Tdiff > 0.) {
+        Tdiff = Tdiff/B_width2;
+    } else {
+        Tdiff = Tdiff/B_width1;
+    }
+    double bulk = B_norm*exp(-Tdiff*Tdiff);
+    return(bulk);
+}

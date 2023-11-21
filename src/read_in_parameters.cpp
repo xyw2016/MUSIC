@@ -602,6 +602,14 @@ InitData read_in_parameters(std::string input_file) {
     if (tempinput != "empty")
         istringstream ( tempinput ) >> temp_eta_over_s_at_kink;
     parameter_list.eta_over_s_at_kink = temp_eta_over_s_at_kink;
+    
+    // the strength for the viscous regulation
+    double temp_quest_revert_strength = 10.;
+    tempinput = Util::StringFind4(input_file, "quest_revert_strength");
+    if (tempinput != "empty") {
+        istringstream(tempinput) >> temp_quest_revert_strength;
+    }
+    parameter_list.quest_revert_strength = temp_quest_revert_strength;
 
     // Include_Bulk_Visc_Yes_1_No_0
     int tempturn_on_bulk = 0;
@@ -613,6 +621,10 @@ InitData read_in_parameters(std::string input_file) {
     // T_dependent_Bulk_to_S_ratio:
     int tempT_dependent_bulk_to_s = 1;
     tempinput = Util::StringFind4(input_file, "T_dependent_Bulk_to_S_ratio");
+    if (tempinput != "empty")
+        istringstream(tempinput) >> tempT_dependent_bulk_to_s;
+    parameter_list.T_dependent_bulk_to_s = tempT_dependent_bulk_to_s;
+    tempinput = Util::StringFind4(input_file, "T_dependent_zeta_over_s");
     if (tempinput != "empty")
         istringstream(tempinput) >> tempT_dependent_bulk_to_s;
     parameter_list.T_dependent_bulk_to_s = tempT_dependent_bulk_to_s;
