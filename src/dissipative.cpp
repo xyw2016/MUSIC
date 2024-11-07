@@ -169,8 +169,9 @@ double Diss::Make_uWSource(double tau, Cell_small *grid_pt, Cell_small *grid_pt_
     }
 
     T = eos.get_temperature(epsilon, rhob);
-
-    shear_to_s = transport_coeffs_.get_eta_over_s(T);
+    double muB = eos.get_muB(epsilon, rhob);
+    
+    shear_to_s = transport_coeffs_.get_eta_over_s(T, muB);
 
     int include_WWterm         = 0;
     //int include_Vorticity_term = 0;
@@ -186,7 +187,12 @@ double Diss::Make_uWSource(double tau, Cell_small *grid_pt, Cell_small *grid_pt_
     ////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////
     double pressure = eos.get_pressure(epsilon, rhob);
-    shear = (shear_to_s)*(epsilon + pressure)/(T + 1e-15);
+    if (DATA.muB_dependent_shear_to_s == 0) {
+        double entropy = eos.get_entropy(epsilon, rhob);
+        shear = shear_to_s*entropy;
+    } else {
+        shear = shear_to_s*(epsilon + pressure)/std::max(T, Util::small_eps);
+    }
     double tau_pi = (transport_coeffs_.get_shear_relax_time_factor()
                      *shear/(epsilon + pressure + 1e-15));
     tau_pi = std::max(3.*DATA.delta_tau, tau_pi);
@@ -1044,7 +1050,6 @@ void Diss::output_eta_over_s_T_and_muB_dependence() {
     int nrhob       = 1000;
     double drhob    = (rhob_max - rhob_min)/(nrhob - 1.);
 
-    double etaT_over_enthropy = DATA.shear_to_s;
     for (int i = 0; i < ne; i++) {
         double e_local = e_min + i*de;
         for (int j = 0; j < nrhob; j++) {
@@ -1057,8 +1062,13 @@ void Diss::output_eta_over_s_T_and_muB_dependence() {
             double s_local = eos.get_entropy(e_local, rhob_local);
             double T_local = eos.get_temperature(e_local, rhob_local);
 
-            double eta_over_s = (
-                etaT_over_enthropy*(e_local + p_local)/(T_local*s_local));
+            double shear_to_s = DATA.shear_to_s;
+            shear_to_s = transport_coeffs_.get_eta_over_s(T_local, mu_B_local);
+
+            double eta_over_s = shear_to_s;
+            if (DATA.muB_dependent_shear_to_s != 0) {
+                eta_over_s = shear_to_s*(e_local + p_local)/(T_local*s_local);
+            }
 
             // output
             of << std::scientific << std::setw(18) << std::setprecision(8)
@@ -1076,7 +1086,6 @@ void Diss::output_eta_over_s_T_and_muB_dependence() {
 void Diss::output_eta_over_s_along_const_sovernB() {
     music_message.info("output eta/s(T, mu_B) along constant s/n_B trajectories...");
 
-    double etaT_over_enthropy = DATA.shear_to_s;
     double sovernB[] = {10.0, 20.0, 30.0, 51.0, 70.0, 94.0, 144.0, 420.0};
     int array_length = sizeof(sovernB)/sizeof(double);
     double s_0 = 0.00;         // 1/fm^3
@@ -1096,19 +1105,24 @@ void Diss::output_eta_over_s_along_const_sovernB() {
             double e_local = eos.get_s2e(s_local, nB_local);
             double s_check = eos.get_entropy(e_local, nB_local);
             double p_local = eos.get_pressure(e_local, nB_local);
-            double temperature = eos.get_temperature(e_local, nB_local);
+            double T_local = eos.get_temperature(e_local, nB_local);
             double mu_B = eos.get_muB(e_local, nB_local);
             if (mu_B*hbarc > 0.78)
                 continue;  // discard points out of the table
 
-            double eta_over_s = (
-                etaT_over_enthropy*(e_local + p_local)/(temperature*s_local));
+            double shear_to_s = DATA.shear_to_s;
+            shear_to_s = transport_coeffs_.get_eta_over_s(T_local, mu_B);
+
+            double eta_over_s = shear_to_s;
+            if (DATA.muB_dependent_shear_to_s != 0) {
+                eta_over_s = shear_to_s*(e_local + p_local)/(T_local*s_local);
+            }
 
             // output
             of << std::scientific << std::setw(18) << std::setprecision(8)
                << e_local*hbarc << "   " << nB_local << "   "
                << s_check << "   "
-               << temperature*hbarc << "   " << mu_B*hbarc << "   "
+               << T_local*hbarc << "   " << mu_B*hbarc << "   "
                << eta_over_s << std::endl;
         }
         of.close();  // close the file

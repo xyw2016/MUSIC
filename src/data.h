@@ -108,6 +108,7 @@ typedef struct init_data {
     
     //! flag to include temperature dependent eta/s(T)
     int T_dependent_shear_to_s;
+    int muB_dependent_shear_to_s;
 
     //! flag to control the temperature dependence of eta/s(T) if "T_dependent_shear_to_s==2"
     double eta_over_s_min;

@@ -13,18 +13,53 @@ TransportCoeffs::TransportCoeffs(const EOS &eosIn, const InitData &Data_in)
 }
 
 
-double TransportCoeffs::get_eta_over_s(double T) const {
-    double eta_over_s;
+double TransportCoeffs::get_eta_over_s(const double T, const double muB) const {
+    // inputs T [1/fm], muB [1/fm]
+    // outputs \eta/s
+    double eta_over_s = DATA.shear_to_s;
     if (DATA.T_dependent_shear_to_s == 1) {
         eta_over_s = get_temperature_dependent_eta_over_s_default(T);
     } else if (DATA.T_dependent_shear_to_s == 2) {
         eta_over_s = get_temperature_dependent_eta_over_s_duke(T);
     } else if (DATA.T_dependent_shear_to_s == 3) {
         eta_over_s = get_temperature_dependent_eta_over_s_sims(T);
+    } else if (DATA.T_dependent_shear_to_s == 11) {
+        eta_over_s *= get_temperature_dependence_shear_profile(T);
     } else {
         eta_over_s = DATA.shear_to_s;
     }
+    if (DATA.muB_dependent_shear_to_s == 10) {
+        eta_over_s *= get_muB_dependence_shear_profile(muB);
+    }
+
     return eta_over_s;
+}
+
+double TransportCoeffs::get_muB_dependence_shear_profile(
+                                                const double muB_in_fm) const {
+    const double muB_in_GeV = muB_in_fm*hbarc;
+    const double alpha = 0.8;
+    const double muB_slope = 0.9;
+    const double muB_scale = 0.6;
+    double f_muB = 1. + muB_slope*pow(muB_in_GeV/muB_scale, alpha);
+    return(f_muB);
+}
+
+double TransportCoeffs::get_temperature_dependence_shear_profile(
+                                            const double T_in_fm) const {
+    const double T_in_GeV = T_in_fm*hbarc;
+    const double Tc = 0.165;
+    double f_T = 1.0;
+    if (T_in_GeV < Tc) {
+        const double Tslope = 1.2;
+        const double Tlow = 0.1;
+        f_T += Tslope*(Tc - T_in_GeV)/(Tc - Tlow);
+    } else {
+        const double Tslope2 = 0.0;
+        const double Thigh = 0.4;
+        f_T += Tslope2*(T_in_GeV - Tc)/(Thigh - Tc);
+    }
+    return(f_T);
 }
 
 

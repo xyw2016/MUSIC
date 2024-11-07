@@ -541,6 +541,14 @@ InitData read_in_parameters(std::string input_file) {
         istringstream(tempinput) >> tempT_dependent_shear_to_s;
     parameter_list.T_dependent_shear_to_s = tempT_dependent_shear_to_s;
 
+    // muB_dependent_Shear_to_S_ratio:
+    // if 1 use hard-coded muB-dependent shear viscosity
+    int tempmuB_dependent_shear_to_s = 0;
+    tempinput = Util::StringFind4(input_file, "muB_dependent_Shear_to_S_ratio");
+    if (tempinput != "empty")
+        istringstream(tempinput) >> tempmuB_dependent_shear_to_s;
+    parameter_list.muB_dependent_shear_to_s = tempmuB_dependent_shear_to_s;
+    
     //Shear_to_S_ratio:  constant eta/s
     double tempshear_to_s = 0.08;
     tempinput = Util::StringFind4(input_file, "Shear_to_S_ratio");
