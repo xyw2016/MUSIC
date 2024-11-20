@@ -31,6 +31,8 @@ typedef struct init_data {
     std::string initName_TA;  //!< filename for nuclear thickness function TA
     std::string initName_TB;  //!< filename for nuclear thickness function TB
     std::string initName_participants;  //!< filename for participant nucleons
+    std::string initName_rhob_TA;
+    std::string initName_rhob_TB;
     double nucleonWidth;
 
     // parameters for Initial_profile == 30
@@ -84,6 +86,8 @@ typedef struct init_data {
     double minmod_theta;
 
     double sFactor;     //!< overall normalization on energy density profile
+    double rhobNorm;
+
     int whichEOS;       //!< type of EoS
     //! flag for boost invariant simulations
     bool boost_invariant;

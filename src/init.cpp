@@ -244,7 +244,17 @@ void Init::InitTJb(SCGrid &arena_prev, SCGrid &arena_current) {
         for (int ieta = 0; ieta < arena_current.nEta(); ieta++) {
             initial_with_zero_XY(ieta, arena_prev, arena_current);
         }
-    } else if (DATA.Initial_profile == 13 || DATA.Initial_profile == 131) {
+    } else if (DATA.Initial_profile == 114){
+        //Phys.Rev.C 109 (2024) 1, 014907
+        music_message.info(" ----- information on initial distribution -----");
+        music_message << "file name used: " << DATA.initName_TA << " and "
+                      << DATA.initName_TB;
+        music_message.flush("info");
+
+        initial_MCGlb_with_rhob2(arena_prev, arena_current);
+
+
+    }else if (DATA.Initial_profile == 13 || DATA.Initial_profile == 131) {
         music_message.info("Initialize hydro with source terms");
         #pragma omp parallel for
         for (int ieta = 0; ieta < arena_current.nEta(); ieta++) {
@@ -270,6 +280,15 @@ void Init::InitTJb(SCGrid &arena_prev, SCGrid &arena_current) {
         music_message << "file name used: " << DATA.initName;
         music_message.flush("info");
         initial_UMN_with_rhob(arena_prev, arena_current);
+    }
+    else if (DATA.Initial_profile == 21) {
+        music_message.info(" ----- information on initial distribution -----");
+        music_message << "initialized with a SMASH initial condition.";
+        music_message << "starting time: " << DATA.tau0;
+        music_message << "file name used: " << DATA.initName;
+        music_message.flush("info");
+
+        initial_with_smash(arena_prev, arena_current);
     }
 
     if (DATA.viscosity_flag == 0) {
@@ -826,6 +845,99 @@ void Init::initial_MCGlb_with_rhob(SCGrid &arena_prev, SCGrid &arena_current) {
 }
 
 
+void Init::initial_MCGlb_with_rhob2(SCGrid &arena_prev, SCGrid &arena_current) {
+    // first load in the transverse profile
+    ifstream profile_TA(DATA.initName_TA.c_str());
+    ifstream profile_TB(DATA.initName_TB.c_str());
+    ifstream profile_rhob_TA(DATA.initName_rhob_TA.c_str());
+    ifstream profile_rhob_TB(DATA.initName_rhob_TB.c_str());
+
+    const int nx = arena_current.nX();
+    const int ny = arena_current.nY();
+    double temp_profile_TA[nx][ny];
+    double temp_profile_TB[nx][ny];
+    double temp_profile_rhob_TA[nx][ny];
+    double temp_profile_rhob_TB[nx][ny];
+    double N_B = 0.0;
+    for (int i = 0; i < nx; i++) {
+        for (int j = 0; j < ny; j++) {
+            profile_TA >> temp_profile_TA[i][j];
+            profile_TB >> temp_profile_TB[i][j];
+            profile_rhob_TA >> temp_profile_rhob_TA[i][j];
+            profile_rhob_TB >> temp_profile_rhob_TB[i][j];
+            N_B += temp_profile_TA[i][j] + temp_profile_TB[i][j];
+        }
+    }
+    profile_TA.close();
+    profile_TB.close();
+    profile_rhob_TA.close();
+    profile_rhob_TB.close();
+    N_B *= DATA.delta_x*DATA.delta_y;
+    double total_energy = DATA.ecm/2.*N_B;
+    music_message << "sqrt{s} = " << DATA.ecm << " GeV, "
+                  << "beam rapidity = " << DATA.beam_rapidity;
+    music_message.flush("info");
+    music_message << "From TA & TB: total energy = " << total_energy << " GeV, "
+                  << "N_B = " << N_B;
+    music_message.flush("info");
+    music_message << "rhobNorm = " << DATA.rhobNorm << ", "
+                  << "total adjusted baryon = " << N_B * DATA.rhobNorm << ", "
+                  << "total adjusted energy = " << total_energy * DATA.rhobNorm;
+    music_message.flush("info");
+
+    int entropy_flag = DATA.initializeEntropy;
+
+    #pragma omp parallel for
+    for (int ieta = 0; ieta < arena_current.nEta(); ieta++) {
+        double eta = (DATA.delta_eta)*ieta - (DATA.eta_size)/2.0;
+        double eta_envelop_left  = eta_profile_left_factor(eta);
+        double eta_envelop_right = eta_profile_right_factor(eta);
+        double eta_rhob_left     = eta_rhob_left_factor(eta);
+        double eta_rhob_right    = eta_rhob_right_factor(eta);
+
+        for (int ix = 0; ix < nx; ix++) {
+            for (int iy = 0; iy< ny; iy++) {
+                double rhob = 0.0;
+                double epsilon = 0.0;
+                if (DATA.turn_on_rhob == 1) {
+                    rhob = (
+                        (temp_profile_rhob_TA[ix][iy]*eta_rhob_left
+                         + temp_profile_rhob_TB[ix][iy]*eta_rhob_right));
+                    rhob = DATA.rhobNorm * rhob; // a factor tuning net baryon
+                } else {
+                    rhob = 0.0;
+                }
+                if (entropy_flag == 0) {
+                    epsilon = (
+                        (temp_profile_TA[ix][iy]*eta_envelop_left
+                         + temp_profile_TB[ix][iy]*eta_envelop_right)
+                        *DATA.sFactor/hbarc);   // 1/fm^4
+                } else {
+                    double local_sd = (
+                        (temp_profile_TA[ix][iy]*eta_envelop_left
+                         + temp_profile_TB[ix][iy]*eta_envelop_right)
+                        *DATA.sFactor);         // 1/fm^3
+                    epsilon = eos.get_s2e(local_sd, rhob);
+                }
+                epsilon = std::max(1e-12, epsilon);
+
+                arena_current(ix, iy, ieta).epsilon = epsilon;
+                arena_current(ix, iy, ieta).rhob = rhob;
+
+                arena_current(ix, iy, ieta).u[0] = 1.0;
+                arena_current(ix, iy, ieta).u[1] = 0.0;
+                arena_current(ix, iy, ieta).u[2] = 0.0;
+                arena_current(ix, iy, ieta).u[3] = 0.0;
+
+                arena_prev(ix, iy, ieta) = arena_current(ix, iy, ieta);
+            }
+        }
+    }
+}
+
+
+
+
 void Init::initial_with_zero_XY(int ieta, SCGrid &arena_prev,
                                 SCGrid &arena_current) {
     const int nx = arena_current.nX();
@@ -934,6 +1046,164 @@ void Init::initial_AMPT_XY(int ieta, SCGrid &arena_prev,
         }
     }
 }
+
+
+void Init::initial_with_smash(SCGrid &arena_prev, SCGrid &arena_current) {
+
+    double tau0 = DATA.tau0;
+    ifstream profile(DATA.initName.c_str());
+
+    if (!profile.good()) {
+        music_message << "Init::InitTJb: "
+                      << "Can not open the initial file: "
+                      << DATA.initName;
+        music_message.flush("error");
+        exit(1);
+    }
+
+    std::string dummy;
+    // read the information line
+    // std::getline(profile, dummy);
+
+    const int nx = arena_current.nX();
+    const int ny = arena_current.nY();
+    const int neta = arena_current.nEta();
+    std::vector<double> temp_profile_ed(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_nb(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_utau(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_ux(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_uy(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_ueta(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_pitautau(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_pitaux(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_pitauy(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_pitaueta(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_pixx(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_pixy(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_pixeta(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_piyy(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_piyeta(nx*ny*neta, 0.0);
+    std::vector<double> temp_profile_pietaeta(nx*ny*neta, 0.0);
+
+    // read the input file
+    double density, baryon, dummy1, dummy2, dummy3;
+    double ux, uy, utau, ueta;
+    double pitautau, pitaux, pitauy, pitaueta;
+    double pixx, pixy, pixeta, piyy, piyeta, pietaeta;
+
+    for (int ix = 0; ix < nx; ix++) {
+        for (int iy = 0; iy < ny; iy++) {
+            for (int ieta = 0; ieta < neta; ieta++) {
+                int idx = ieta + neta * (iy + ny * ix);
+                // std::getline(profile, dummy);
+                // std::stringstream ss(dummy);
+                profile >> density >> baryon >> utau >> ux >> uy >> ueta;
+                   // >> pitautau >> pitaux >> pitauy >> pitaueta
+                   // >> pixx >> pixy >> pixeta >> piyy >> piyeta >> pietaeta;
+                // music_message << "density: " << density << "baryon: " << baryon << "utau: " << utau;
+                // music_message.flush("info");
+
+                ueta = ueta*tau0;
+                temp_profile_ed    [idx] = density/hbarc;  // 1/fm^4
+                temp_profile_nb    [idx] = baryon;
+                temp_profile_ux    [idx] = ux;
+                temp_profile_uy    [idx] = uy;
+                temp_profile_ueta  [idx] = ueta;
+                temp_profile_utau  [idx] = sqrt(1. + ux*ux + uy*uy + ueta*ueta);
+                temp_profile_pixx  [idx] = 0.;
+                temp_profile_pixy  [idx] = 0.;
+                temp_profile_pixeta[idx] = 0.;
+                temp_profile_piyy  [idx] = 0.;
+                temp_profile_piyeta[idx] = 0.;
+
+                utau = temp_profile_utau[idx];
+                temp_profile_pietaeta[idx] = (
+                    (2.*(  ux*uy*temp_profile_pixy[idx]
+                         + ux*ueta*temp_profile_pixeta[idx]
+                         + uy*ueta*temp_profile_piyeta[idx])
+                     - (utau*utau - ux*ux)*temp_profile_pixx[idx]
+                     - (utau*utau - uy*uy)*temp_profile_piyy[idx])
+                    /(utau*utau - ueta*ueta));
+                temp_profile_pitaux  [idx] = (1./utau
+                    *(  temp_profile_pixx[idx]*ux
+                      + temp_profile_pixy[idx]*uy
+                      + temp_profile_pixeta[idx]*ueta));
+                temp_profile_pitauy  [idx] = (1./utau
+                    *(  temp_profile_pixy[idx]*ux
+                      + temp_profile_piyy[idx]*uy
+                      + temp_profile_piyeta[idx]*ueta));
+                temp_profile_pitaueta[idx] = (1./utau
+                    *(  temp_profile_pixeta[idx]*ux
+                      + temp_profile_piyeta[idx]*uy
+                      + temp_profile_pietaeta[idx]*ueta));
+                temp_profile_pitautau[idx] = (1./utau
+                    *(  temp_profile_pitaux[idx]*ux
+                      + temp_profile_pitauy[idx]*uy
+                      + temp_profile_pitaueta[idx]*ueta));
+                // if (ix == 0 && iy == 0) {
+                //     DATA.x_size = -dummy1*2;
+                //     DATA.y_size = -dummy2*2;
+                //     if (omp_get_thread_num() == 0) {
+                //         music_message << "eta_size=" << DATA.eta_size
+                //                       << ", x_size=" << DATA.x_size
+                //                       << ", y_size=" << DATA.y_size;
+                //         music_message.flush("info");
+                //     }
+                // }
+            }
+        }
+        // std::getline(profile, dummy);
+    }
+    profile.close();
+
+    #pragma omp parallel for
+    for (int ix = 0; ix < nx; ix++) {
+        for (int iy = 0; iy< ny; iy++) {
+            for (int ieta = 0; ieta < neta; ieta++) {
+                int idx = ieta + neta * (iy + ny * ix);
+
+                double rhob = 0.0;
+                double epsilon = 0.0;
+
+                if (temp_profile_ed[idx] < 0.00000000001){
+                    epsilon = 0.00000000001;
+                } else {
+                    epsilon = temp_profile_ed[idx];
+                }
+
+                if (DATA.turn_on_rhob == 1) {
+                    rhob = temp_profile_nb[idx];
+                } else {
+                    rhob = 0.0;
+                }
+
+                arena_current(ix, iy, ieta).epsilon = epsilon;
+                arena_current(ix, iy, ieta).rhob = rhob;
+
+                arena_current(ix, iy, ieta).u[0] = temp_profile_utau[idx];
+                arena_current(ix, iy, ieta).u[1] = temp_profile_ux[idx];
+                arena_current(ix, iy, ieta).u[2] = temp_profile_uy[idx];
+                arena_current(ix, iy, ieta).u[3] = temp_profile_ueta[idx];
+                
+                double pressure = eos.get_pressure(epsilon, rhob);
+                arena_current(ix, iy, ieta).pi_b = epsilon/3. - pressure;
+                arena_current(ix, iy, ieta).Wmunu[0] = temp_profile_pitautau[idx];
+                arena_current(ix, iy, ieta).Wmunu[1] = temp_profile_pitaux[idx];
+                arena_current(ix, iy, ieta).Wmunu[2] = temp_profile_pitauy[idx];
+                arena_current(ix, iy, ieta).Wmunu[3] = temp_profile_pitaueta[idx];
+                arena_current(ix, iy, ieta).Wmunu[4] = temp_profile_pixx[idx];
+                arena_current(ix, iy, ieta).Wmunu[5] = temp_profile_pixy[idx];
+                arena_current(ix, iy, ieta).Wmunu[6] = temp_profile_pixeta[idx];
+                arena_current(ix, iy, ieta).Wmunu[7] = temp_profile_piyy[idx];
+                arena_current(ix, iy, ieta).Wmunu[8] = temp_profile_piyeta[idx];
+                arena_current(ix, iy, ieta).Wmunu[9] = temp_profile_pietaeta[idx];
+
+                arena_prev(ix, iy, ieta) = arena_current(ix, iy, ieta);
+            }
+        }
+    }
+}
+
 
 
 void Init::get_jetscape_preequilibrium_vectors(

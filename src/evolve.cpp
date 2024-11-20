@@ -131,6 +131,8 @@ int Evolve::EvolveIt(SCGrid &arena_prev, SCGrid &arena_current,
                 grid_info.OutputEvolutionDataXYEta(*ap_current, tau);
             } else if (DATA.outputEvolutionData == 2) {
                 grid_info.OutputEvolutionDataXYEta_chun(*ap_current, tau);
+            } else if (DATA.outputEvolutionData == 5) {
+                grid_info.OutputEvolutionDataXYEta_chun2(*ap_current, tau);
             } else if (DATA.outputEvolutionData == 3) {
                 grid_info.OutputEvolutionDataXYEta_photon(*ap_current, tau);
             } else if (DATA.outputEvolutionData == 4) {

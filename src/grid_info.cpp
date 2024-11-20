@@ -590,6 +590,178 @@ void Cell_info::OutputEvolutionDataXYEta_chun(SCGrid &arena, double tau) {
 }
 
 
+//! This function outputs hydro evolution file in binary format
+void Cell_info::OutputEvolutionDataXYEta_chun2(SCGrid &arena,
+                                              double tau) {
+    // the format of the file is as follows,
+    //    itau ix iy ieta e P T ux uy ueta
+    // if turn_on_shear == 1:
+    //    itau ix iy ieta e P T ux uy ueta Wxx Wxy Wxeta Wyy Wyeta
+    // if turn_on_shear == 1 and turn_on_bulk == 1:
+    //    itau ix iy ieta e P T ux uy ueta Wxx Wxy Wxeta Wyy Wyeta pi_b
+    // if turn_on_rhob == 1:
+    //    itau ix iy ieta e P T ux uy ueta mu_B
+    // if turn_on_rhob == 1 and turn_on_shear == 1:
+    //    itau ix iy ieta e P T ux uy ueta mu_B Wxx Wxy Wxeta Wyy Wyeta
+    // if turn_on_rhob == 1 and turn_on_shear == 1 and turn_on_diff == 1:
+    //    itau ix iy ieta e P T ux uy ueta mu_B Wxx Wxy Wxeta Wyy Wyeta qx qy qeta
+    // if turn_on_rhob == 1 and turn_on_shear == 1 and turn_on_bulk == 1 and turn_on_diff == 1:
+    //    itau ix iy ieta e P T ux uy ueta mu_B Wxx Wxy Wxeta Wyy Wyeta pi_b qx qy qeta
+    // Here ueta = tau*ueta, Wieta = tau*Wieta, qeta = tau*qeta
+    // Here Wij is reduced variables Wij/(e+P) used in delta f
+    // and qi is reduced variables qi/kappa_hat
+    const string out_name_xyeta = "evolution_all_xyeta.dat";
+    string out_open_mode;
+    FILE *out_file_xyeta;
+    // If it's the first timestep, overwrite the previous file
+    if (tau == DATA.tau0) {
+        out_open_mode = "wb";
+    } else {
+        out_open_mode = "ab";
+    }
+    out_file_xyeta = fopen(out_name_xyeta.c_str(), out_open_mode.c_str());
+
+    int n_skip_tau     = DATA.output_evolution_every_N_timesteps;
+    double output_dtau = DATA.delta_tau*n_skip_tau;
+    int itau           = static_cast<int>((tau - DATA.tau0)/(output_dtau) + 0.1);
+
+    int n_skip_x       = DATA.output_evolution_every_N_x;
+    int n_skip_y       = DATA.output_evolution_every_N_y;
+    int n_skip_eta     = DATA.output_evolution_every_N_eta;
+
+    // write out header
+    const int output_nx        = static_cast<int>(arena.nX()/n_skip_x);
+    const int output_ny        = static_cast<int>(arena.nY()/n_skip_y);
+    const int output_neta      = static_cast<int>(arena.nEta()/n_skip_eta);
+    const double output_dx     = DATA.delta_x*n_skip_x;
+    const double output_dy     = DATA.delta_y*n_skip_y;
+    const double output_deta   = DATA.delta_eta*n_skip_eta;
+    const double output_xmin   = - DATA.x_size/2.;
+    const double output_ymin   = - DATA.y_size/2.;
+    const double output_etamin = - DATA.eta_size/2.;
+
+    if (tau == DATA.tau0) {
+        const int nVar_per_cell = (11 + DATA.turn_on_rhob*2
+                                      + DATA.turn_on_shear*5
+                                      + DATA.turn_on_bulk*1
+                                      + DATA.turn_on_diff*3);
+        float header[] = {
+            static_cast<float>(DATA.tau0), static_cast<float>(output_dtau),
+            static_cast<float>(output_nx), static_cast<float>(output_dx),
+            static_cast<float>(output_xmin),
+            static_cast<float>(output_ny), static_cast<float>(output_dy),
+            static_cast<float>(output_ymin),
+            static_cast<float>(output_neta), static_cast<float>(output_deta),
+            static_cast<float>(output_etamin),
+            static_cast<float>(DATA.turn_on_rhob),
+            static_cast<float>(DATA.turn_on_shear),
+            static_cast<float>(DATA.turn_on_bulk),
+            static_cast<float>(DATA.turn_on_diff),
+            static_cast<float>(nVar_per_cell)};
+        fwrite(header, sizeof(float), 16, out_file_xyeta);
+    }
+    for (int ieta = 0; ieta < arena.nEta(); ieta += n_skip_eta) {
+        for (int iy = 0; iy < arena.nY(); iy += n_skip_y) {
+            for (int ix = 0; ix < arena.nX(); ix += n_skip_x) {
+                double e_local    = arena(ix, iy, ieta).epsilon;  // 1/fm^4
+                double rhob_local = arena(ix, iy, ieta).rhob;     // 1/fm^3
+                double p_local    = eos.get_pressure(e_local, rhob_local);
+                double cs2        = eos.get_cs2(e_local, rhob_local);
+
+                double ux   = arena(ix, iy, ieta).u[1];
+                double uy   = arena(ix, iy, ieta).u[2];
+                double ueta = arena(ix, iy, ieta).u[3];
+
+                // T_local is in 1/fm
+                double T_local = eos.get_temperature(e_local, rhob_local);
+
+                if (T_local*hbarc < DATA.output_evolution_T_cut) continue;
+                // only ouput fluid cells that are above cut-off temperature
+
+                double muB_local = 0.0;
+                if (DATA.turn_on_rhob == 1)
+                    muB_local = eos.get_muB(e_local, rhob_local);
+
+                double div_factor = e_local + p_local;  // 1/fm^4
+                double Wxx   = 0.0;
+                double Wxy   = 0.0;
+                double Wxeta = 0.0;
+                double Wyy   = 0.0;
+                double Wyeta = 0.0;
+                if (DATA.turn_on_shear == 1) {
+                    Wxx   = arena(ix, iy, ieta).Wmunu[4]/div_factor;
+                    Wxy   = arena(ix, iy, ieta).Wmunu[5]/div_factor;
+                    Wxeta = arena(ix, iy, ieta).Wmunu[6]/div_factor;
+                    Wyy   = arena(ix, iy, ieta).Wmunu[7]/div_factor;
+                    Wyeta = arena(ix, iy, ieta).Wmunu[8]/div_factor;
+                }
+
+                double pi_b = 0.0;
+                if (DATA.turn_on_bulk == 1) {
+                    pi_b = arena(ix, iy, ieta).pi_b;   // 1/fm^4
+                }
+
+                // outputs for baryon diffusion part
+                //double common_term_q = 0.0;
+                double qx   = 0.0;
+                double qy   = 0.0;
+                double qeta = 0.0;
+                if (DATA.turn_on_diff == 1) {
+                    //common_term_q = rhob_local*T_local/div_factor;
+                    double kappa_hat = get_deltaf_qmu_coeff(T_local,
+                                                            muB_local);
+                    qx   = arena(ix, iy, ieta).Wmunu[11]/kappa_hat;
+                    qy   = arena(ix, iy, ieta).Wmunu[12]/kappa_hat;
+                    qeta = arena(ix, iy, ieta).Wmunu[13]/kappa_hat;
+                }
+
+                float ideal[] = {static_cast<float>(itau),
+                                 static_cast<float>(ix/n_skip_x),
+                                 static_cast<float>(iy/n_skip_y),
+                                 static_cast<float>(ieta/n_skip_eta),
+                                 static_cast<float>(e_local*hbarc),
+                                 static_cast<float>(p_local*hbarc),
+                                 static_cast<float>(T_local*hbarc),
+                                 static_cast<float>(cs2),
+                                 static_cast<float>(ux),
+                                 static_cast<float>(uy),
+                                 static_cast<float>(ueta)};
+
+                fwrite(ideal, sizeof(float), 11, out_file_xyeta);
+
+                if (DATA.turn_on_rhob == 1) {
+                    float mu[] = {static_cast<float>(rhob_local),
+                                  static_cast<float>(muB_local*hbarc)};
+                    fwrite(mu, sizeof(float), 2, out_file_xyeta);
+                }
+
+                if (DATA.turn_on_shear == 1) {
+                    float shear_pi[] = {static_cast<float>(Wxx),
+                                        static_cast<float>(Wxy),
+                                        static_cast<float>(Wxeta),
+                                        static_cast<float>(Wyy),
+                                        static_cast<float>(Wyeta)};
+                    fwrite(shear_pi, sizeof(float), 5, out_file_xyeta);
+                }
+
+                if (DATA.turn_on_bulk == 1) {
+                    float bulk_pi[] = {static_cast<float>(pi_b)};
+                    fwrite(bulk_pi, sizeof(float), 1, out_file_xyeta);
+                }
+
+                if (DATA.turn_on_diff == 1) {
+                    float diffusion[] = {static_cast<float>(qx),
+                                         static_cast<float>(qy),
+                                         static_cast<float>(qeta)};
+                    fwrite(diffusion, sizeof(float), 3, out_file_xyeta);
+                }
+            }
+        }
+    }
+    fclose(out_file_xyeta);
+}
+
+
 //! This function outputs hydro evolution file in binary format for photon production
 void Cell_info::OutputEvolutionDataXYEta_photon(SCGrid &arena, double tau) {
     // volume = tau*dtau*dx*dy*deta

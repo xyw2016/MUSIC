@@ -58,6 +58,9 @@ class Cell_info {
     //! This function outputs hydro evolution file in binary format
     void OutputEvolutionDataXYEta_chun(SCGrid &arena, double tau);
 
+    //! This function outputs hydro evolution file in binary format (tau-eta)
+    void OutputEvolutionDataXYEta_chun2(SCGrid &arena, double tau);
+
     //! This function outputs hydro evolution file in binary format for photon production
     void OutputEvolutionDataXYEta_photon(SCGrid &arena, double tau);
 

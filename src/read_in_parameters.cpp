@@ -443,7 +443,7 @@ InitData read_in_parameters(std::string input_file) {
         istringstream(tempinput) >> tempeta_fall_off ;
     parameter_list.eta_fall_off  = tempeta_fall_off;
 
-    // Eta_plateau_size:
+    // EEta_fall_offta_plateau_size:
     // width of the flat region symmetrical around eta=0
     double tempeta_flat = 20.0;
     tempinput = Util::StringFind4(input_file, "Eta_plateau_size");
@@ -464,6 +464,12 @@ InitData read_in_parameters(std::string input_file) {
     if (tempinput != "empty")
         istringstream ( tempinput ) >> tempsFactor;
     parameter_list.sFactor = tempsFactor;
+
+    double temprhobNorm   = 1.0;
+    tempinput = Util::StringFind4(input_file, "rhob_Norm");
+    if (tempinput != "empty")
+        istringstream ( tempinput ) >> temprhobNorm;
+    parameter_list.rhobNorm = temprhobNorm;
 
     // for calculation of spectra:
     // max_pseudorapidity:
@@ -846,6 +852,23 @@ InitData read_in_parameters(std::string input_file) {
     if (tempinput != "empty")
         tempinitName_TB.assign(tempinput);
     parameter_list.initName_TB.assign(tempinitName_TB);
+
+     // Initial_Distribution_Filename for rhob TA
+    string tempinitName_rhob_TA = "initial/initial_rhob_TA.dat";
+    tempinput = Util::StringFind4(input_file,
+                                  "Initial_rhob_TA_Distribution_Filename");
+    if (tempinput != "empty")
+        tempinitName_rhob_TA.assign(tempinput);
+    parameter_list.initName_rhob_TA.assign(tempinitName_rhob_TA);
+    // Initial_Distribution_Filename for rhob TB
+    string tempinitName_rhob_TB = "initial/initial_rhob_TB.dat";
+    tempinput = Util::StringFind4(input_file,
+                                  "Initial_rhob_TB_Distribution_Filename");
+    if (tempinput != "empty")
+        tempinitName_rhob_TB.assign(tempinput);
+    parameter_list.initName_rhob_TB.assign(tempinitName_rhob_TB);
+
+
     // Initial_Distribution_Filename for participant list
     string tempinitName_part = "initial/participantList.dat";
     tempinput = Util::StringFind4(input_file,
