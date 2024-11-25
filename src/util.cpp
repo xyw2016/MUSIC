@@ -30,6 +30,20 @@ double gmn(const int a) {
 }
 
 
+bool replace(std::string& original, const std::string& to_replace, const std::string& replacement) {
+    size_t start_pos = original.find(to_replace);  
+    if (start_pos != std::string::npos) {  
+        original.replace(start_pos, to_replace.length(), replacement); 
+        return true; 
+    }
+    return false; 
+}
+
+
+
+
+
+
 double **mtx_malloc(const int n1, const int n2) {
     double **d1_ptr; 
     d1_ptr = new double *[n1];

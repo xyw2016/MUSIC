@@ -27,6 +27,8 @@ namespace Util {
 
     double theta(const double x);
     double gmn(const int a);
+    
+    bool replace(std::string& original, const std::string& to_replace, const std::string& replacement);
 
     double **mtx_malloc(const int n1, const int n2);
 
