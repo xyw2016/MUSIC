@@ -26,6 +26,7 @@ typedef struct init_data {
                             //!< 4: do resonance decays only
 
     std::string initName;   //!< filename for initial condition T^{\mu\nu}
+    std::string initName_rhob;
 
     // parameters for Initial_profile == 11 || 111
     std::string initName_TA;  //!< filename for nuclear thickness function TA

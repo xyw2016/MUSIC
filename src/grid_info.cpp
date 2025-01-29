@@ -294,6 +294,193 @@ void Cell_info::OutputEvolutionDataXYEta(SCGrid &arena, double tau) {
 }
 
 
+//! This function outputs hydro evolution file in binary format
+void Cell_info::OutputEvolutionDataXYEta_taueta(SCGrid &arena, double tau) {
+    const string out_name_xyeta = "evolution_xyeta.dat";
+    const string out_name_W_xyeta =
+                        "evolution_Wmunu_over_epsilon_plus_P_xyeta.dat";
+    const string out_name_bulkpi_xyeta = "evolution_bulk_pressure_xyeta.dat";
+    const string out_name_q_xyeta = "evolution_qmu_xyeta.dat";
+    string out_open_mode;
+    FILE *out_file_xyeta        = NULL;
+    FILE *out_file_W_xyeta      = NULL;
+    FILE *out_file_bulkpi_xyeta = NULL;
+    FILE *out_file_q_xyeta      = NULL;
+
+    // If it's the first timestep, overwrite the previous file
+    if (tau == DATA.tau0) {
+        out_open_mode = "w";
+    } else {
+        out_open_mode = "a";
+    }
+    // If we output in binary, set the mode accordingly
+    if (0 == DATA.outputBinaryEvolution) {
+        out_open_mode += "b";
+    }
+    out_file_xyeta = fopen(out_name_xyeta.c_str(), out_open_mode.c_str());
+    if (DATA.turn_on_shear == 1) {
+        out_file_W_xyeta = fopen(out_name_W_xyeta.c_str(),
+                                 out_open_mode.c_str());
+    }
+    if (DATA.turn_on_bulk == 1) {
+        out_file_bulkpi_xyeta = fopen(out_name_bulkpi_xyeta.c_str(),
+                                      out_open_mode.c_str());
+    }
+    if (DATA.turn_on_diff == 1) {
+        out_file_q_xyeta = fopen(out_name_q_xyeta.c_str(),
+                                 out_open_mode.c_str());
+    }
+    const int n_skip_x   = DATA.output_evolution_every_N_x;
+    const int n_skip_y   = DATA.output_evolution_every_N_y;
+    const int n_skip_eta = DATA.output_evolution_every_N_eta;
+    for (int ieta = 0; ieta < arena.nEta(); ieta += n_skip_eta) {
+        double eta = 0.0;
+        if (!DATA.boost_invariant) {
+            eta = ((static_cast<double>(ieta))*(DATA.delta_eta)
+                    - (DATA.eta_size)/2.0);
+        }
+        double cosh_eta = cosh(eta);
+        double sinh_eta = sinh(eta);
+        for (int iy = 0; iy < arena.nY(); iy += n_skip_y) {
+            for (int ix = 0; ix < arena.nX(); ix += n_skip_x) {
+                double e_local    = arena(ix, iy, ieta).epsilon;  // 1/fm^4
+                double rhob_local = arena(ix, iy, ieta).rhob;     // 1/fm^3
+                double p_local = eos.get_pressure(e_local, rhob_local);
+                double utau = arena(ix, iy, ieta).u[0];
+                double ux   = arena(ix, iy, ieta).u[1];
+                double uy   = arena(ix, iy, ieta).u[2];
+                double ueta = arena(ix, iy, ieta).u[3];
+                double veta = ueta/utau;
+                double ut = utau*cosh_eta + ueta*sinh_eta;  // gamma factor
+                double vx = ux/ut;
+                double vy = uy/ut;
+                double uz = ueta*cosh_eta + utau*sinh_eta;
+                double vz = uz/ut;
+
+                double T_local   = eos.get_temperature(e_local, rhob_local);
+                double cs2_local = eos.get_cs2(e_local, rhob_local);
+                double muB_local = eos.get_muB(e_local, rhob_local);
+                double enthropy  = e_local + p_local;  // [1/fm^4]
+
+                double Wtautau = 0.0;
+                double Wtaux   = 0.0;
+                double Wtauy   = 0.0;
+                double Wtaueta = 0.0;
+                double Wxx     = 0.0;
+                double Wxy     = 0.0;
+                double Wxeta   = 0.0;
+                double Wyy     = 0.0;
+                double Wyeta   = 0.0;
+                double Wetaeta = 0.0;
+                if (DATA.turn_on_shear == 1) {
+                    Wtautau = arena(ix, iy, ieta).Wmunu[0]/enthropy;
+                    Wtaux   = arena(ix, iy, ieta).Wmunu[1]/enthropy;
+                    Wtauy   = arena(ix, iy, ieta).Wmunu[2]/enthropy;
+                    Wtaueta = arena(ix, iy, ieta).Wmunu[3]/enthropy;
+                    Wxx     = arena(ix, iy, ieta).Wmunu[4]/enthropy;
+                    Wxy     = arena(ix, iy, ieta).Wmunu[5]/enthropy;
+                    Wxeta   = arena(ix, iy, ieta).Wmunu[6]/enthropy;
+                    Wyy     = arena(ix, iy, ieta).Wmunu[7]/enthropy;
+                    Wyeta   = arena(ix, iy, ieta).Wmunu[8]/enthropy;
+                    Wetaeta = arena(ix, iy, ieta).Wmunu[9]/enthropy;
+                }
+
+                double bulk_Pi = 0.0;
+                if (DATA.turn_on_bulk == 1) {
+                    bulk_Pi = arena(ix, iy, ieta).pi_b;  // [1/fm^4]
+                }
+
+                // outputs for baryon diffusion part
+                double common_term_q = 0.0;
+                double qtau          = 0.0;
+                double qx            = 0.0;
+                double qy            = 0.0;
+                double qeta          = 0.0;
+                if (DATA.turn_on_diff == 1) {
+                    common_term_q = rhob_local*T_local/enthropy;
+                    double kappa_hat = get_deltaf_qmu_coeff(T_local,
+                                                            muB_local);
+                    qtau = arena(ix, iy, ieta).Wmunu[10]/kappa_hat;
+                    qx   = arena(ix, iy, ieta).Wmunu[11]/kappa_hat;
+                    qy   = arena(ix, iy, ieta).Wmunu[12]/kappa_hat;
+                    qeta = arena(ix, iy, ieta).Wmunu[13]/kappa_hat;
+                }
+
+                // exclude the actual coordinates from the output to save space:
+                if (DATA.outputBinaryEvolution == 0) {
+                    fprintf(out_file_xyeta, "%e %e %e %e %e %e %e %e\n",
+                            tau*hbarc,e_local*hbarc,rhob_local,T_local*hbarc, muB_local*hbarc, vx, vy, veta);
+                    if (DATA.viscosity_flag == 1) {
+                        if (DATA.turn_on_shear) {
+                            fprintf(out_file_W_xyeta,
+                                    "%e %e %e %e %e %e %e %e %e %e\n",
+                                    Wtautau, Wtaux, Wtauy, Wtaueta, Wxx, Wxy,
+                                    Wxeta, Wyy, Wyeta, Wetaeta);
+                        }
+                        if (DATA.turn_on_bulk) {
+                            fprintf(out_file_bulkpi_xyeta,"%e %e %e\n", bulk_Pi, enthropy, cs2_local);
+                        }
+                    }
+                } else {
+                    float array[] = {static_cast<float>(tau*hbarc),
+                                     static_cast<float>(e_local*hbarc),
+                                     static_cast<float>(rhob_local*hbarc),
+                                     static_cast<float>(T_local*hbarc),
+                                     static_cast<float>(muB_local*hbarc),
+                                     static_cast<float>(vx),
+                                     static_cast<float>(vy),
+                                     static_cast<float>(veta)};
+                    fwrite(array, sizeof(float), 8, out_file_xyeta);
+                    if (DATA.viscosity_flag == 1) {
+                        if (DATA.turn_on_shear == 1) {
+                            float array2[] = {static_cast<float>(Wtautau),
+                                              static_cast<float>(Wtaux),
+                                              static_cast<float>(Wtauy),
+                                              static_cast<float>(Wtaueta),
+                                              static_cast<float>(Wxx),
+                                              static_cast<float>(Wxy),
+                                              static_cast<float>(Wxeta),
+                                              static_cast<float>(Wyy),
+                                              static_cast<float>(Wyeta),
+                                              static_cast<float>(Wetaeta)};
+                            fwrite(array2, sizeof(float), 10,
+                                   out_file_W_xyeta);
+                        }
+                        if (DATA.turn_on_bulk == 1) {
+                            float array1[] = {static_cast<float>(bulk_Pi),
+                                              static_cast<float>(enthropy),
+                                              static_cast<float>(cs2_local)};
+                            fwrite(array1, sizeof(float), 3,
+                                   out_file_bulkpi_xyeta);
+                        }
+                        if (DATA.turn_on_diff == 1) {
+                            float array3[] = {static_cast<float>(common_term_q),
+                                              static_cast<float>(qtau),
+                                              static_cast<float>(qx),
+                                              static_cast<float>(qy),
+                                              static_cast<float>(qeta)};
+                            fwrite(array3, sizeof(float), 5,
+                                   out_file_q_xyeta);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    fclose(out_file_xyeta);
+    if (DATA.turn_on_shear == 1) {
+        fclose(out_file_W_xyeta);
+    }
+    if (DATA.turn_on_bulk == 1) {
+        fclose(out_file_bulkpi_xyeta);
+    }
+    if (DATA.turn_on_diff == 1) {
+        fclose(out_file_q_xyeta);
+    }
+}
+
+
+
 void Cell_info::OutputEvolution_Knudsen_Reynoldsnumbers(
         SCGrid &arena, const double tau) const {
     const string out_name_xyeta = "evolution_KRnumbers.dat";

@@ -58,6 +58,7 @@ class Init {
     void initial_AMPT_XY                 (int ieta, SCGrid &arena_prev, SCGrid &arena_current);
     void initial_MCGlb_with_rhob         (SCGrid &arena_prev, SCGrid &arena_current);
     void initial_MCGlb_with_rhob2         (SCGrid &arena_prev, SCGrid &arena_current);
+    void initial_MCGlb_with_rhob3         (SCGrid &arena_prev, SCGrid &arena_current);
 
     void initial_UMN_with_rhob           (SCGrid &arena_prev, SCGrid & arena_current);
     void initial_with_jetscape           (int ieta, SCGrid &arena_prev, SCGrid &arena_current);

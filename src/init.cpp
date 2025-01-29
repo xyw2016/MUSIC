@@ -322,7 +322,18 @@ void Init::InitTJb(SCGrid &arena_prev, SCGrid &arena_current) {
         initial_MCGlb_with_rhob2(arena_prev, arena_current);
 
 
-    }else if (DATA.Initial_profile == 13 || DATA.Initial_profile == 131) {
+    } else if (DATA.Initial_profile == 115){
+        //smash initial condition
+        music_message.info(" ----- information on initial distribution -----");
+        music_message << "file name used: " << DATA.initName << " and "
+                      << DATA.initName_rhob;
+        music_message.flush("info");
+
+        initial_MCGlb_with_rhob3(arena_prev, arena_current);
+
+
+    }
+    else if (DATA.Initial_profile == 13 || DATA.Initial_profile == 131) {
         music_message.info("Initialize hydro with source terms");
         #pragma omp parallel for
         for (int ieta = 0; ieta < arena_current.nEta(); ieta++) {
@@ -1203,6 +1214,62 @@ void Init::initial_MCGlb_with_rhob2(SCGrid &arena_prev, SCGrid &arena_current) {
     }
 }
 
+
+
+void Init::initial_MCGlb_with_rhob3(SCGrid &arena_prev, SCGrid &arena_current) {
+    // first load in the transverse profile
+    std::cout <<" 00 "<<std::endl;
+    ifstream profile_ev(DATA.initName.c_str());
+    ifstream profile_nb(DATA.initName_rhob.c_str());
+    std::cout <<" 11 "<<std::endl;
+    const int nx = arena_current.nX();
+    const int ny = arena_current.nY();
+    const int neta = arena_current.nEta();
+    std::cout <<" 22 "<<std::endl;
+
+    double temp_profile_ed[nx][ny][neta];
+    double temp_profile_vx[nx][ny][neta];
+    double temp_profile_vy[nx][ny][neta];
+    double temp_profile_veta[nx][ny][neta];
+    double temp_profile_nb[nx][ny][neta];
+    std::cout <<" 22 "<<std::endl;
+    
+    double local_ed ;
+    double local_nb ;
+    double local_vx ;
+    double local_vy ;
+    double local_vz ;
+    for (int i = 0; i < nx; i++) {
+        for (int j = 0; j < ny; j++) {
+            for (int k =0 ; k<neta; k++){
+                //std::cout<<temp_profile_ed[i][j][k]<<" "<<temp_profile_vx[i][j][k]<<" "<<temp_profile_vy[i][j][k]" "<<temp_profile_veta[i][j][k]<<std::endl;
+                profile_ev >> local_ed>>local_vx>>local_vy>>local_vz;
+                profile_nb >> local_nb;
+
+
+                 double gamma = 1.0/(sqrt(1-local_vx*local_vx-local_vy*local_vy-local_vz*local_vz));
+                double local_u0 = gamma;
+                double local_u1 = gamma*local_vx;
+                double local_u2 = gamma*local_vy;
+                double local_u3 = gamma*local_vz;
+
+
+                arena_current(i, j, k).epsilon = local_ed/hbarc;
+                arena_current(i, j, k).rhob = local_nb;
+                arena_current(i, j, k).u[0] = local_u0;
+                arena_current(i, j, k).u[1] = local_u1;
+                arena_current(i, j, k).u[2] = local_u2;
+                arena_current(i, j, k).u[3] = local_u3;
+
+                arena_prev(i, j, k) = arena_current(i, j, k);
+
+            }
+        }
+    }
+    profile_ev.close();
+    profile_nb.close();
+    
+}
 
 
 

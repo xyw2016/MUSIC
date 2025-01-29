@@ -838,6 +838,14 @@ InitData read_in_parameters(std::string input_file) {
         tempinitName.assign(tempinput);
     parameter_list.initName.assign(tempinitName);
 
+    // Initial_Rhob_Distribution_Filename
+    string tempinitName_rhob = "initial/initial_nb.dat";
+    tempinput = Util::StringFind4(input_file,
+                                  "Initial_Rhob_Distribution_input_filename");
+    if (tempinput != "empty")
+        tempinitName_rhob.assign(tempinput);
+    parameter_list.initName_rhob.assign(tempinitName_rhob);
+
     // Initial_Distribution_Filename for TA
     string tempinitName_TA = "initial/initial_TA.dat";
     tempinput = Util::StringFind4(input_file,
