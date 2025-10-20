@@ -113,6 +113,58 @@ void Init::InitArena(
                           << "acording to the CFL condition.";
             music_message.flush("info");
         }
+    
+
+    }else if (   DATA.Initial_profile == 6 || DATA.Initial_profile == 61
+               || DATA.Initial_profile == 62 || DATA.Initial_profile == 63) {
+        music_message.info(DATA.initName);
+        ifstream profile(DATA.initName.c_str());
+        if (!profile.is_open()) {
+            music_message << "Initial profile: " << DATA.initName
+                          << " not found.";
+            music_message.flush("error");
+            exit(1);
+        }
+        std::string dummy;
+        int nx, ny, neta;
+        double deta, dx, dy, dummy2;
+        
+        // read the first line with general info
+        profile >> dummy >> neta >> dummy >> nx >> dummy >> ny
+                >> dummy >> deta >> dummy >> dx >> dummy >> dy;
+        profile.close();
+        music_message << "wxy neta=" << neta
+                      << ", nx=" << nx << ", ny=" << ny;
+        music_message << "Using Initial_profile=" << DATA.Initial_profile
+                      << ". Overwriting lattice dimensions:";
+        DATA.nx = nx;
+        DATA.ny = ny;
+        DATA.delta_x = dx;
+        DATA.delta_y = dy;
+        if (neta == 1){
+            DATA.delta_eta = 0.1;
+            DATA.boost_invariant == 1;
+
+        }
+        else if (neta > 1) {
+            DATA.delta_eta = deta;
+            DATA.neta = neta;
+            DATA.boost_invariant == 0;
+
+        }
+
+        // if (DATA.boost_invariant == 0){
+	    // 	DATA.delta_eta = 0.1;
+	    // }
+
+
+        music_message << "wxy neta=" << DATA.neta
+                      << ", nx=" << DATA.nx << ", ny=" << DATA.ny;
+        music_message << "deta=" << DATA.delta_eta << ", dx=" << DATA.delta_x
+                      << ", dy=" << DATA.delta_y;
+        music_message.flush("info");
+
+
     } else if (DATA.Initial_profile == 11 || DATA.Initial_profile == 111) {
         double tau_overlap = 2. * 7. / (sinh(DATA.beam_rapidity));
         DATA.tau0 = std::max(DATA.tau0, tau_overlap);
@@ -243,6 +295,20 @@ void Init::InitTJb(Fields &arenaFieldsPrev, Fields &arenaFieldsCurr) {
         for (int ieta = 0; ieta < arenaFieldsCurr.nEta(); ieta++) {
             initial_IPGlasma_XY_with_pi(ieta, arenaFieldsPrev, arenaFieldsCurr);
         }
+    
+
+    }  else if (   DATA.Initial_profile == 6 || DATA.Initial_profile == 61
+               || DATA.Initial_profile == 62 || DATA.Initial_profile == 63) {
+        // read in the profile from file
+        // - IPGlasma initial conditions with initial flow
+        // and initial shear viscous tensor
+        music_message.info(" ----- information on initial distribution -----");
+        music_message << "file name used: " << DATA.initName;
+        music_message.flush("info");
+
+        //#pragma omp parallel for
+        //for (int ieta = 0; ieta < arena_current.nEta(); ieta++) {
+        initial_IPGlasma_XY_with_pi_mcgill(arenaFieldsPrev, arenaFieldsCurr);
     } else if (DATA.Initial_profile == 11 || DATA.Initial_profile == 111) {
         // read in the transverse profile from file with finite rho_B
         // the initial entropy and net baryon density profile are
@@ -758,6 +824,220 @@ void Init::initial_IPGlasma_XY_with_pi(
             arenaFieldsPrev.piBulk_[Fidx] = arenaFieldsCurr.piBulk_[Fidx];
         }
     }
+}
+void Init::initial_IPGlasma_XY_with_pi_mcgill(Fields &arena_prev,
+                                       Fields &arena_current) {
+
+
+            
+    // Initial_profile == 9 : full T^\mu\nu
+    // Initial_profile == 91: e and u^\mu
+    // Initial_profile == 92: e only
+    // Initial_profile == 93: e, u^\mu, and pi^\mu\nu, no bulk Pi
+    double tau0 = DATA.tau0;
+    std::string filename;
+    filename.assign(DATA.initName);
+    double threshold = 10.0;
+
+    music_message << filename << " test";
+    music_message.flush("info");
+    ifstream profile(filename);
+
+    for (int ieta = 0; ieta < arena_current.nEta(); ieta++) {
+            
+
+
+        std::string dummy;
+        // read the information line
+        std::getline(profile, dummy);
+
+        const int nx = arena_current.nX();
+        const int ny = arena_current.nY();
+        std::vector<double> temp_profile_ed(nx*ny, 0.0);
+        std::vector<double> temp_profile_utau(nx*ny, 0.0);
+        std::vector<double> temp_profile_ux(nx*ny, 0.0);
+        std::vector<double> temp_profile_uy(nx*ny, 0.0);
+        std::vector<double> temp_profile_ueta(nx*ny, 0.0);
+        std::vector<double> temp_profile_pitautau(nx*ny, 0.0);
+        std::vector<double> temp_profile_pitaux(nx*ny, 0.0);
+        std::vector<double> temp_profile_pitauy(nx*ny, 0.0);
+        std::vector<double> temp_profile_pitaueta(nx*ny, 0.0);
+        std::vector<double> temp_profile_pixx(nx*ny, 0.0);
+        std::vector<double> temp_profile_pixy(nx*ny, 0.0);
+        std::vector<double> temp_profile_pixeta(nx*ny, 0.0);
+        std::vector<double> temp_profile_piyy(nx*ny, 0.0);
+        std::vector<double> temp_profile_piyeta(nx*ny, 0.0);
+        std::vector<double> temp_profile_pietaeta(nx*ny, 0.0);
+
+        // read the one slice
+        double density, dummy1, dummy2, dummy3;
+        double ux, uy, utau, ueta;
+        double pitautau, pitaux, pitauy, pitaueta;
+        double pixx, pixy, pixeta, piyy, piyeta, pietaeta;
+        for (int ix = 0; ix < nx; ix++) {
+            for (int iy = 0; iy < ny; iy++) {
+                int idx = iy + ix*ny;
+                std::getline(profile, dummy);
+                std::stringstream ss(dummy);
+                ss >> dummy1 >> dummy2 >> dummy3
+                >> density >> utau >> ux >> uy >> ueta
+                >> pitautau >> pitaux >> pitauy >> pitaueta
+                >> pixx >> pixy >> pixeta >> piyy >> piyeta >> pietaeta;
+                ueta = ueta*tau0;
+                temp_profile_ed    [idx] = density*hbarc;
+                temp_profile_ux    [idx] = ux;
+                temp_profile_uy    [idx] = uy;
+                temp_profile_ueta  [idx] = ueta;
+                temp_profile_utau  [idx] = sqrt(1. + ux*ux + uy*uy + ueta*ueta);
+                temp_profile_pixx  [idx] = pixx*DATA.sFactor;
+                temp_profile_pixy  [idx] = pixy*DATA.sFactor;
+                temp_profile_piyy  [idx] = piyy*DATA.sFactor;
+                // Nic: 2D with tau; 3D without tau   
+                // different point in public version, tau factor
+                // need to check 
+                if (DATA.boost_invariant == 0){    
+                    temp_profile_pixeta[idx] = pixeta*tau0*DATA.sFactor;            
+                    temp_profile_piyeta[idx] = piyeta*tau0*DATA.sFactor; 
+                }
+                else{
+
+                    temp_profile_pixeta[idx] = pixeta*DATA.sFactor;             
+                    temp_profile_piyeta[idx] = piyeta*DATA.sFactor; 
+                }
+                
+                utau = temp_profile_utau[idx];
+                temp_profile_pietaeta[idx] = (
+                    (2.*(  ux*uy*temp_profile_pixy[idx]
+                        + ux*ueta*temp_profile_pixeta[idx]
+                        + uy*ueta*temp_profile_piyeta[idx])
+                    - (utau*utau - ux*ux)*temp_profile_pixx[idx]
+                    - (utau*utau - uy*uy)*temp_profile_piyy[idx])
+                    /(utau*utau - ueta*ueta));
+                temp_profile_pitaux  [idx] = (1./utau
+                    *(  temp_profile_pixx[idx]*ux
+                    + temp_profile_pixy[idx]*uy
+                    + temp_profile_pixeta[idx]*ueta));
+                temp_profile_pitauy  [idx] = (1./utau
+                    *(  temp_profile_pixy[idx]*ux
+                    + temp_profile_piyy[idx]*uy
+                    + temp_profile_piyeta[idx]*ueta));
+                temp_profile_pitaueta[idx] = (1./utau
+                    *(  temp_profile_pixeta[idx]*ux
+                    + temp_profile_piyeta[idx]*uy
+                    + temp_profile_pietaeta[idx]*ueta));
+                temp_profile_pitautau[idx] = (1./utau
+                    *(  temp_profile_pitaux[idx]*ux
+                    + temp_profile_pitauy[idx]*uy
+                    + temp_profile_pitaueta[idx]*ueta));
+                if (ix == 0 && iy == 0 && ieta==0) {
+                    DATA.x_size = -dummy1*2;
+                    DATA.y_size = -dummy2*2;
+                    DATA.eta_size = -dummy3*2;
+                    
+                    if (omp_get_thread_num() == 0) {
+                        music_message << "eta_size=" << DATA.eta_size
+                                    << ", x_size=" << DATA.x_size
+                                    << ", y_size=" << DATA.y_size;
+                        music_message.flush("info");
+                    }
+                }
+            }
+        std::getline(profile, dummy);
+        }
+        
+
+        double eta = (DATA.delta_eta)*(ieta) - (DATA.eta_size)/2.0;
+        music_message << "eta=" << eta << " ieta=" << ieta;
+        music_message.flush("info");
+        double eta_envelop_ed = eta_profile_plateau(eta, DATA.eta_flat/2.0,
+                                                    DATA.eta_fall_off);
+        int entropy_flag = DATA.initializeEntropy;
+        for (int ix = 0; ix < nx; ix++) {
+            for (int iy = 0; iy< ny; iy++) {
+                int idx = iy + ix*ny;
+                double rhob = 0.0;
+                double epsilon = 0.0;
+                if (entropy_flag == 0) {
+                    epsilon = (temp_profile_ed[idx]*eta_envelop_ed
+                            *DATA.sFactor/hbarc);  // 1/fm^4
+                } else {
+                    double local_sd = (temp_profile_ed[idx]*DATA.sFactor
+                                    *eta_envelop_ed);
+                    epsilon = eos.get_s2e(local_sd, rhob);
+                }
+                epsilon = std::max(Util::small_eps, epsilon);
+
+                int Fidx = arena_current.getFieldIdx(ix, iy, ieta);
+                
+		arena_current.e_[Fidx] = epsilon;
+                arena_current.rhob_[Fidx]  = rhob;
+		arena_prev.e_[Fidx] = epsilon;
+                arena_prev.rhob_[Fidx]  = rhob;
+
+                if (DATA.Initial_profile == 62) { // remove threshold?
+                    arena_current.u_[0][Fidx] = 1.0;
+                    arena_current.u_[1][Fidx] = 0.0;
+                    arena_current.u_[2][Fidx] = 0.0;
+                    arena_current.u_[3][Fidx] = 0.0;
+                } else {
+                    arena_current.u_[0][Fidx] = temp_profile_utau[idx];
+                    arena_current.u_[1][Fidx] = temp_profile_ux[idx];
+                    arena_current.u_[2][Fidx] = temp_profile_uy[idx];
+                    arena_current.u_[3][Fidx] = temp_profile_ueta[idx];
+                }
+
+                if (DATA.Initial_profile == 6 || DATA.Initial_profile == 63) {
+                    if (DATA.boost_invariant != 0) {
+                    arena_current.Wmunu_[0][Fidx] = temp_profile_pitautau[idx];
+                    arena_current.Wmunu_[1][Fidx] = temp_profile_pitaux[idx];
+                    arena_current.Wmunu_[2][Fidx] = temp_profile_pitauy[idx];
+                    arena_current.Wmunu_[3][Fidx] = temp_profile_pitaueta[idx];
+                    arena_current.Wmunu_[4][Fidx] = temp_profile_pixx[idx];
+                    arena_current.Wmunu_[5][Fidx] = temp_profile_pixy[idx];
+                    arena_current.Wmunu_[6][Fidx] = temp_profile_pixeta[idx];
+                    arena_current.Wmunu_[7][Fidx] = temp_profile_piyy[idx];
+                    arena_current.Wmunu_[8][Fidx] = temp_profile_piyeta[idx];
+                    arena_current.Wmunu_[9][Fidx] = temp_profile_pietaeta[idx];
+                    }
+		    else if (DATA.boost_invariant == 0) {
+                        // Bring everything down according to envelope if in 3D and above threshold
+                        // remove eta_envelop_ed, because eta_envelop_ed == 1;
+                    arena_current.Wmunu_[0][Fidx] = temp_profile_pitautau[idx];
+                    arena_current.Wmunu_[1][Fidx] = temp_profile_pitaux[idx];
+                    arena_current.Wmunu_[2][Fidx] = temp_profile_pitauy[idx];
+                    arena_current.Wmunu_[3][Fidx] = temp_profile_pitaueta[idx];
+                    arena_current.Wmunu_[4][Fidx] = temp_profile_pixx[idx];
+                    arena_current.Wmunu_[5][Fidx] = temp_profile_pixy[idx];
+                    arena_current.Wmunu_[6][Fidx] = temp_profile_pixeta[idx];
+                    arena_current.Wmunu_[7][Fidx] = temp_profile_piyy[idx];
+                    arena_current.Wmunu_[8][Fidx] = temp_profile_piyeta[idx];
+                    arena_current.Wmunu_[9][Fidx] = temp_profile_pietaeta[idx];
+                    }
+
+                    if (DATA.Initial_profile == 6) {
+                        double pressure = eos.get_pressure(epsilon, rhob);
+                        arena_current.piBulk_[Fidx] = ((epsilon/3. - pressure)*DATA.preEqVisFactor);
+                    }
+
+
+
+
+                }
+            for (int i = 0; i < 4; i++) {
+                arena_prev.u_[i][Fidx] = arena_current.u_[i][Fidx];
+            }
+
+            for (int i = 0; i < 10; i++) {
+                arena_prev.Wmunu_[i][Fidx] =
+                    (arena_current.Wmunu_[i][Fidx]);
+            }
+            arena_prev.piBulk_[Fidx] = arena_current.piBulk_[Fidx];
+
+            }
+        }
+
+    } //end ieta
+    profile.close();
 }
 
 void Init::regulationResummedTransCoeff(Cell_small &grid_pt) {
